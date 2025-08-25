@@ -1,0 +1,17 @@
+# Python
+backend/venv/
+backend/app/__pycache__/
+backend/app/*.pyc
+backend/app/.env
+backend/journii.db
+
+# Node.js
+frontend/node_modules/
+frontend/.expo/
+frontend/dist/
+frontend/build/
+frontend/package-lock.json
+
+# General
+*.log
+.DS_Store
