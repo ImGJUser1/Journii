@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 Journii
-=======
-
->>>>>>> b65092d1915003b0aff48b08fca9d6b47e255fd6
 Journii is an AI-driven cultural journey navigator and commuter companion app offering personalized experience recommendations, real-time transit routing, social travel matching, safety alerts, dynamic itineraries, community storytelling, and gamified rewards. Explore culture and commute safely with AI-powered guidance.
 Features
 
@@ -77,6 +73,7 @@ Journii/
 ├── .github/
 │   ├── workflows/
 │   │   ├── dependency-scan.yml
+│   ├── dependabot.yml
 │   ├── FUNDING.yml
 ├── backend/
 │   ├── app/
@@ -84,11 +81,36 @@ Journii/
 │   │   ├── config.py
 │   │   ├── requirements.txt
 │   │   ├── routers/
+│   │   │   ├── cultural_explorer.py
+│   │   │   ├── gamification.py
+│   │   │   ├── auth.py
+│   │   │   ├── transit_planner.py
+│   │   │   ├── social_companion.py
+│   │   │   ├── itinerary_builder.py
+│   │   │   ├── community_sharing.py
+│   │   │   ├── __init__.py
 │   │   ├── schemas/
+│   │   │   ├── cultural.py
+│   │   │   ├── gamification.py
+│   │   │   ├── transit.py
+│   │   │   ├── __init__.py
 │   │   ├── services/
+│   │   │   ├── gemini_service.py
+│   │   │   ├── rewards_service.py
+│   │   │   ├── transit_service.py
+│   │   │   ├── __init__.py
 │   │   ├── utils/
+│   │   │   ├── auth.py
+│   │   │   ├── error_handling.py
+│   │   │   ├── database.py
+│   │   │   ├── __init__.py
 │   │   ├── models/
+│   │   │   ├── user.py
+│   │   │   ├── __init__.py
 │   │   ├── tests/
+│   │   │   ├── __init__.py
+│   │   ├── .env
+│   │   ├── __init__.py
 ├── frontend/
 │   ├── app/
 │   │   ├── (tabs)/
@@ -100,10 +122,14 @@ Journii/
 │   │   ├── stores/
 │   │   │   ├── app-store.ts
 │   ├── package.json
+│   ├── tsconfig.json
 ├── CONTRIBUTING.md
 ├── .gitignore
 ├── README.md
+├── tree.txt
 
+Monetization
+Journii is exploring listing on Dealsbe to offer exclusive discounts for developers and startups. Check out our deal to access premium features like AI-powered cultural recommendations and real-time transit routing!
 Contributing
 We welcome contributions! Please read CONTRIBUTING.md for guidelines on how to contribute, including coding standards and pull request processes.
 Support the Project
@@ -111,8 +137,4 @@ Love Journii? Support us via GitHub Sponsors to help maintain and improve the ap
 License
 MIT License. See LICENSE for details.
 Contact
-<<<<<<< HEAD
 For questions, open an issue on GitHub or contact the maintainers at [your-email@example.com].
-=======
-For questions, open an issue on GitHub or contact the maintainers at [your-email@example.com]..
->>>>>>> b65092d1915003b0aff48b08fca9d6b47e255fd6
