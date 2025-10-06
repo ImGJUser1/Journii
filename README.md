@@ -5,15 +5,15 @@ It seamlessly blends travel, culture, social connection, and mobility — helpin
 
 ---
 
-## ✨ Key Features
+##  Key Features
 
-* **🎭 Cultural Explorer** – Personalized recommendations for local events, artisan workshops, hidden gems, and food trails.
-* **🚌 Smart Transit Planner** – Real-time transit guidance with filters for **eco-friendly**, **fastest**, or **scenic** routes.
-* **🤝 Social Companion** – Match with like-minded travelers or locals to share journeys.
-* **📅 Dynamic Itinerary Builder** – Auto-generated, customizable itineraries with live updates.
-* **🌐 Community Sharing** – A space to share stories, itineraries, and cultural insights.
-* **🏆 Gamified Rewards** – XP, points, and cultural achievement badges.
-* **🔒 Secure Access** – JWT-based authentication for safe login and data handling.
+* **Cultural Explorer** – Personalized recommendations for local events, artisan workshops, hidden gems, and food trails.
+* **Smart Transit Planner** – Real-time transit guidance with filters for **eco-friendly**, **fastest**, or **scenic** routes.
+* **Social Companion** – Match with like-minded travelers or locals to share journeys.
+* **Dynamic Itinerary Builder** – Auto-generated, customizable itineraries with live updates.
+* **Community Sharing** – A space to share stories, itineraries, and cultural insights.
+* **Gamified Rewards** – XP, points, and cultural achievement badges.
+* **Secure Access** – JWT-based authentication for safe login and data handling.
 
 ---
 
@@ -153,7 +153,7 @@ Journii/
 
 ---
 
-## 💰 Monetization Roadmap
+##Monetization Roadmap
 
 * **Dealsbe listing** for exclusive discounts & travel perks
 * **Premium add-ons**:
