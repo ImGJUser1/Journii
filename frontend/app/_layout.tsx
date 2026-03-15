@@ -3,7 +3,9 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useAppStore } from "@/stores/app-store";
+import { useAppStore } from "../stores/app-store";
+import { Ionicons } from '@expo/vector-icons';
+
 
 SplashScreen.preventAutoHideAsync();
 

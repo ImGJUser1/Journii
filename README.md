@@ -1,76 +1,115 @@
-Journii
-Journii is an AI-driven cultural journey navigator and commuter companion app offering personalized experience recommendations, real-time transit routing, social travel matching, safety alerts, dynamic itineraries, community storytelling, and gamified rewards. Explore culture and commute safely with AI-powered guidance.
-Features
+# 🌍 Journii – AI-Driven Cultural Journey Navigator & Commuter Companion
 
-Cultural Explorer: AI-driven recommendations for cultural events, artisan workshops, and food tours.
-Transit Planner: Real-time transit routing with preferences for eco-friendly or scenic routes.
-Social Companion: Match with like-minded travelers for shared experiences.
-Itinerary Builder: Dynamic, customizable travel itineraries.
-Community Sharing: Share travel stories and tips with a global community.
-Gamification: Earn points and badges for completing travel activities.
-Authentication: Secure user login with JWT-based authentication.
+**Journii** is your **AI-powered cultural journey navigator** and **safe commuter companion**.
+It seamlessly blends travel, culture, social connection, and mobility — helping users explore authentic experiences, plan smooth commutes, and engage with a global community.
 
-Tech Stack
+---
 
-Backend: FastAPI, Python 3.10+, SQLAlchemy, SQLite/PostgreSQL, Gemini API
-Frontend: React Native, Expo, TypeScript, NativeWind, React Query, Zustand
-Tools: Git, GitHub Actions, Jest, Pytest
+## ✨ Key Features
 
-Getting Started
-Prerequisites
+* **🎭 Cultural Explorer** – Personalized recommendations for local events, artisan workshops, hidden gems, and food trails.
+* **🚌 Smart Transit Planner** – Real-time transit guidance with filters for **eco-friendly**, **fastest**, or **scenic** routes.
+* **🤝 Social Companion** – Match with like-minded travelers or locals to share journeys.
+* **📅 Dynamic Itinerary Builder** – Auto-generated, customizable itineraries with live updates.
+* **🌐 Community Sharing** – A space to share stories, itineraries, and cultural insights.
+* **🏆 Gamified Rewards** – XP, points, and cultural achievement badges.
+* **🔒 Secure Access** – JWT-based authentication for safe login and data handling.
 
-Backend:
-Python 3.10+
-pip, virtualenv
-PostgreSQL (or SQLite for development)
+---
 
+## 🛠 Tech Stack
 
-Frontend:
-Node.js 18+
-npm 8+
-Expo Go (for mobile testing)
+**Backend**
 
+* FastAPI (Python 3.10+)
+* SQLAlchemy ORM
+* SQLite / PostgreSQL
+* Gemini AI API integration
 
-Git and a GitHub account
+**Frontend**
 
-Installation
+* React Native (Expo)
+* TypeScript
+* NativeWind (Tailwind for RN)
+* Zustand (state management)
+* React Query (data fetching & caching)
 
-Clone the Repository:
+**DevOps & Tools**
+
+* Git + GitHub Actions (CI/CD)
+* Jest (frontend tests)
+* Pytest (backend tests)
+
+---
+
+## 🚀 Getting Started
+
+### ✅ Prerequisites
+
+* **Backend**: Python 3.10+, pip, virtualenv, PostgreSQL (or SQLite for local dev)
+* **Frontend**: Node.js 18+, npm 8+, Expo Go app
+* Git + GitHub account
+
+---
+
+### 🔧 Installation
+
+#### 1. Clone Repository
+
+```bash
 git clone https://github.com/ImGJUser1/Journii.git
 cd Journii
+```
 
+#### 2. Backend Setup
 
-Backend Setup:
+```bash
 cd backend
 python -m venv venv
-.\venv\Scripts\activate  # On Windows
+.\venv\Scripts\activate   # Windows
 pip install -r app/requirements.txt
+```
 
+Create `.env` in **`backend/app`**:
 
-Create backend/app/.env:DATABASE_URL=sqlite:///journii.db
+```env
+DATABASE_URL=sqlite:///journii.db
 GEMINI_API_KEY=your_gemini_api_key
 JWT_SECRET=your_secure_secret
+```
 
+Run backend:
 
-Run the backend:python -m uvicorn app.main:app --reload
+```bash
+python -m uvicorn app.main:app --reload
+```
 
-Access at http://localhost:8000/docs.
+➡ Visit API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 
+---
 
-Frontend Setup:
+#### 3. Frontend Setup
+
+```bash
 cd frontend
 npm install
 npm start
+```
 
+* Scan QR with **Expo Go** or run in emulator.
+* Ensure frontend config has correct API endpoint:
 
-Scan the QR code with Expo Go or run on an emulator.
-Ensure API_URL=http://localhost:8000 in frontend components.
+```ts
+API_URL=http://localhost:8000
+```
 
+---
 
+## 📂 Project Structure
 
-Project Structure
+```
 Journii/
-├── .github/
+├── .github/                # CI/CD, dependabot, funding configs
 │   ├── workflows/
 │   │   ├── dependency-scan.yml
 │   ├── dependabot.yml
@@ -80,7 +119,7 @@ Journii/
 │   │   ├── main.py
 │   │   ├── config.py
 │   │   ├── requirements.txt
-│   │   ├── routers/
+│   │   ├── routers/         # API endpoints
 │   │   │   ├── cultural_explorer.py
 │   │   │   ├── gamification.py
 │   │   │   ├── auth.py
@@ -88,32 +127,15 @@ Journii/
 │   │   │   ├── social_companion.py
 │   │   │   ├── itinerary_builder.py
 │   │   │   ├── community_sharing.py
-│   │   │   ├── __init__.py
-│   │   ├── schemas/
-│   │   │   ├── cultural.py
-│   │   │   ├── gamification.py
-│   │   │   ├── transit.py
-│   │   │   ├── __init__.py
-│   │   ├── services/
-│   │   │   ├── gemini_service.py
-│   │   │   ├── rewards_service.py
-│   │   │   ├── transit_service.py
-│   │   │   ├── __init__.py
-│   │   ├── utils/
-│   │   │   ├── auth.py
-│   │   │   ├── error_handling.py
-│   │   │   ├── database.py
-│   │   │   ├── __init__.py
-│   │   ├── models/
-│   │   │   ├── user.py
-│   │   │   ├── __init__.py
-│   │   ├── tests/
-│   │   │   ├── __init__.py
+│   │   ├── schemas/         # Pydantic models
+│   │   ├── services/        # AI, external APIs
+│   │   ├── utils/           # Helpers & JWT
+│   │   ├── models/          # SQLAlchemy models
+│   │   ├── tests/           # Backend unit tests
 │   │   ├── .env
-│   │   ├── __init__.py
 ├── frontend/
 │   ├── app/
-│   │   ├── (tabs)/
+│   │   ├── (tabs)/          # Expo Router navigation
 │   │   │   ├── _layout.tsx
 │   │   │   ├── cultural.tsx
 │   │   │   ├── rewards.tsx
@@ -124,17 +146,47 @@ Journii/
 │   ├── package.json
 │   ├── tsconfig.json
 ├── CONTRIBUTING.md
-├── .gitignore
+├── LICENSE
 ├── README.md
 ├── tree.txt
+```
 
-Monetization
-Journii is exploring listing on Dealsbe to offer exclusive discounts for developers and startups. Check out our deal to access premium features like AI-powered cultural recommendations and real-time transit routing!
-Contributing
-We welcome contributions! Please read CONTRIBUTING.md for guidelines on how to contribute, including coding standards and pull request processes.
-Support the Project
-Love Journii? Support us via GitHub Sponsors to help maintain and improve the app!
-License
-MIT License. See LICENSE for details.
-Contact
-For questions, open an issue on GitHub or contact the maintainers at [your-email@example.com].
+---
+
+## 💰 Monetization Roadmap
+
+* **Dealsbe listing** for exclusive discounts & travel perks
+* **Premium add-ons**:
+
+  * Advanced AI-powered cultural recommendations
+  * Real-time advanced transit analytics
+  * Trust-verified companion matching
+
+---
+
+## 🤝 Contributing
+
+We love contributions!
+
+* Follow [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
+* Submit feature requests, bug reports, or PRs.
+
+---
+
+## ❤️ Support the Project
+
+If you find Journii valuable, support us via **GitHub Sponsors** 🙌.
+Your help powers ongoing development and global cultural exchange.
+
+---
+
+## 📜 License
+
+MIT License – see [LICENSE](./LICENSE).
+
+---
+
+## 📬 Contact
+
+For inquiries, issues, or collaborations, reach out via GitHub Issues or email:
+📧 **[your-email@example.com](mailto:your-email@example.com)**

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,233 +6,439 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
-  Platform,
+  RefreshControl,
+  FlatList,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MotiView } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import {
   MapPin,
   Sparkles,
+  Compass,
+  Star,
   Clock,
   Users,
-  Star,
   ChevronRight,
-  Compass,
-  Camera,
+  Search,
+  Filter,
+  Heart,
+  Share2,
+  Navigation,
 } from 'lucide-react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+
+import { useCulturalRecommendations, useNearbyExperiences } from '@/services/api/hooks';
+import { useLocationStore } from '@/stores/location-store';
+import { useAuthStore } from '@/stores/auth-store';
+import { useUIStore } from '@/stores/ui-store';
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/constants/theme';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const { width } = Dimensions.get('window');
 
-interface CulturalExperience {
+// Types
+interface Experience {
   id: string;
   title: string;
   category: string;
-  location: string;
-  rating: number;
-  duration: string;
-  participants: number;
-  image: string;
   description: string;
-  price: string;
+  short_description?: string;
+  location_specifics?: string;
+  duration_minutes?: number;
+  price_range?: string;
+  best_time?: string;
+  cultural_significance?: string;
+  local_tips?: string;
+  tags: string[];
+  avg_rating: number;
+  total_reviews: number;
+  is_verified: boolean;
+  is_bookable: boolean;
+  photos: string[];
 }
-
-const mockExperiences: CulturalExperience[] = [
-  {
-    id: '1',
-    title: 'Traditional Pottery Workshop',
-    category: 'Artisan Experience',
-    location: 'Historic District',
-    rating: 4.8,
-    duration: '2h 30m',
-    participants: 12,
-    image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400',
-    description: 'Learn ancient pottery techniques from master craftsmen',
-    price: '$45',
-  },
-  {
-    id: '2',
-    title: 'Street Food Cultural Tour',
-    category: 'Culinary Journey',
-    location: 'Night Market',
-    rating: 4.9,
-    duration: '3h',
-    participants: 8,
-    image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=400',
-    description: 'Discover authentic local flavors and food stories',
-    price: '$35',
-  },
-  {
-    id: '3',
-    title: 'Urban Art & Mural Walk',
-    category: 'Art Discovery',
-    location: 'Arts Quarter',
-    rating: 4.7,
-    duration: '1h 45m',
-    participants: 15,
-    image: 'https://images.unsplash.com/photo-1541961017774-22349e4a1262?w=400',
-    description: 'Explore vibrant street art with local artists',
-    price: '$25',
-  },
-];
 
 export default function DiscoveryScreen() {
   const insets = useSafeAreaInsets();
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  const router = useRouter();
+  const { currentLocation } = useLocationStore();
+  const { isAuthenticated } = useAuthStore();
+  const { showToast } = useUIStore();
+  
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [refreshing, setRefreshing] = useState(false);
+  const [showAIRecommendations, setShowAIRecommendations] = useState(true);
 
-  const categories = ['All', 'Artisan', 'Culinary', 'Art', 'Music', 'History'];
+  // Fetch recommendations
+  const {
+    data: recommendations,
+    isLoading: isLoadingRecommendations,
+    error: recommendationsError,
+    refetch: refetchRecommendations,
+  } = useCulturalRecommendations({
+    location: currentLocation?.city || 'San Francisco',
+    interests: ['art', 'food', 'history'],
+    travel_style: 'balanced',
+    budget: '$$',
+  });
 
-  const ExperienceCard = ({ experience }: { experience: CulturalExperience }) => (
-    <TouchableOpacity style={styles.experienceCard} activeOpacity={0.9}>
-      <BlurView intensity={60} style={styles.cardBlur}>
-        <LinearGradient
-          colors={['rgba(40,40,45,0.8)', 'rgba(30,30,35,0.9)']}
-          style={styles.cardGradient}
-        >
-        <View style={styles.cardHeader}>
-          <View style={styles.cardImage}>
-            <LinearGradient
-              colors={['#c9a96e', '#8b8680']}
-              style={styles.imagePlaceholder}
-            >
-              <Camera size={24} color="white" />
-            </LinearGradient>
-          </View>
-          <View style={styles.cardInfo}>
-            <Text style={styles.cardTitle}>{experience.title}</Text>
-            <Text style={styles.cardCategory}>{experience.category}</Text>
-            <View style={styles.cardMeta}>
-              <View style={styles.metaItem}>
-                <MapPin size={12} color="#8b8680" />
-                <Text style={styles.metaText}>{experience.location}</Text>
-              </View>
-              <View style={styles.metaItem}>
-                <Clock size={12} color="#8b8680" />
-                <Text style={styles.metaText}>{experience.duration}</Text>
-              </View>
-            </View>
-          </View>
+  // Fetch nearby experiences
+  const {
+    data: nearbyExperiences,
+    isLoading: isLoadingNearby,
+  } = useNearbyExperiences({
+    lat: currentLocation?.latitude || 37.7749,
+    lng: currentLocation?.longitude || -122.4194,
+    radius: 10,
+  });
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetchRecommendations();
+    setRefreshing(false);
+  }, [refetchRecommendations]);
+
+  const handleExperiencePress = (experience: Experience) => {
+    router.push({
+      pathname: '/experience/[id]',
+      params: { id: experience.id, data: JSON.stringify(experience) },
+    });
+  };
+
+  const handleAIButtonPress = () => {
+    if (!isAuthenticated) {
+      showToast({
+        type: 'info',
+        message: 'Sign in to get personalized AI recommendations',
+      });
+      return;
+    }
+    setShowAIRecommendations(!showAIRecommendations);
+  };
+
+  const categories = [
+    'All',
+    'Artisan',
+    'Food',
+    'History',
+    'Nature',
+    'Workshop',
+    'Festival',
+  ];
+
+  const renderHeader = () => (
+    <MotiView
+      from={{ opacity: 0, translateY: -20 }}
+      animate={{ opacity: 1, translateY: 0 }}
+      transition={{ type: 'timing', duration: 500 }}
+      style={[styles.header, { paddingTop: insets.top + Spacing.md }]}
+    >
+      <View>
+        <Text style={styles.greeting}>Discover</Text>
+        <View style={styles.locationRow}>
+          <MapPin size={16} color={Colors.primary.gold} />
+          <Text style={styles.locationText}>
+            {currentLocation?.city || 'San Francisco'}
+          </Text>
         </View>
-        
-        <Text style={styles.cardDescription}>{experience.description}</Text>
-        
-        <View style={styles.cardFooter}>
-          <View style={styles.footerLeft}>
-            <View style={styles.rating}>
-              <Star size={14} color="#c9a96e" fill="#c9a96e" />
-              <Text style={styles.ratingText}>{experience.rating}</Text>
-            </View>
-            <View style={styles.participants}>
-              <Users size={14} color="#8b8680" />
-              <Text style={styles.participantsText}>{experience.participants} joined</Text>
-            </View>
-          </View>
-          <View style={styles.footerRight}>
-            <Text style={styles.price}>{experience.price}</Text>
-            <ChevronRight size={16} color="#c9a96e" />
-          </View>
-        </View>
-        </LinearGradient>
-      </BlurView>
-    </TouchableOpacity>
+      </View>
+      
+      <TouchableOpacity
+        style={styles.aiButton}
+        onPress={handleAIButtonPress}
+        activeOpacity={0.8}
+      >
+        <BlurView intensity={80} style={styles.aiButtonBlur}>
+          <LinearGradient
+            colors={[Colors.primary.gold, Colors.primary.purple]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.aiButtonGradient}
+          >
+            <Sparkles size={20} color={Colors.neutral.white} />
+          </LinearGradient>
+        </BlurView>
+      </TouchableOpacity>
+    </MotiView>
   );
+
+  const renderSearchBar = () => (
+    <MotiView
+      from={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay: 100, type: 'spring' }}
+      style={styles.searchContainer}
+    >
+      <TouchableOpacity style={styles.searchBar} activeOpacity={0.8}>
+        <Search size={20} color={Colors.neutral.gray400} />
+        <Text style={styles.searchPlaceholder}>
+          Search experiences, places, or activities...
+        </Text>
+        <View style={styles.filterButton}>
+          <Filter size={16} color={Colors.primary.gold} />
+        </View>
+      </TouchableOpacity>
+    </MotiView>
+  );
+
+  const renderCategories = () => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.categoriesContainer}
+    >
+      {categories.map((category, index) => (
+        <MotiView
+          key={category}
+          from={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: index * 50, type: 'spring' }}
+        >
+          <TouchableOpacity
+            style={[
+              styles.categoryButton,
+              selectedCategory === category && styles.categoryButtonActive,
+            ]}
+            onPress={() => setSelectedCategory(category)}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.categoryText,
+                selectedCategory === category && styles.categoryTextActive,
+              ]}
+            >
+              {category}
+            </Text>
+          </TouchableOpacity>
+        </MotiView>
+      ))}
+    </ScrollView>
+  );
+
+  const renderStats = () => (
+    <View style={styles.statsContainer}>
+      {[
+        { icon: Compass, value: '127', label: 'Experiences', color: Colors.primary.gold },
+        { icon: Sparkles, value: '89%', label: 'AI Match', color: Colors.primary.purple },
+        { icon: Star, value: '4.8', label: 'Rating', color: Colors.semantic.success },
+      ].map((stat, index) => (
+        <MotiView
+          key={stat.label}
+          from={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 200 + index * 100, type: 'spring' }}
+          style={styles.statCard}
+        >
+          <BlurView intensity={60} style={styles.statBlur}>
+            <LinearGradient
+              colors={[`${stat.color}20`, `${stat.color}10`]}
+              style={styles.statGradient}
+            >
+              <stat.icon size={20} color={stat.color} />
+              <Text style={[styles.statValue, { color: stat.color }]}>
+                {stat.value}
+              </Text>
+              <Text style={styles.statLabel}>{stat.label}</Text>
+            </LinearGradient>
+          </BlurView>
+        </MotiView>
+      ))}
+    </View>
+  );
+
+  const renderExperienceCard = ({ item, index }: { item: Experience; index: number }) => (
+    <MotiView
+      from={{ opacity: 0, translateY: 50 }}
+      animate={{ opacity: 1, translateY: 0 }}
+      transition={{ delay: index * 100, type: 'spring', damping: 15 }}
+    >
+      <TouchableOpacity
+        style={styles.experienceCard}
+        onPress={() => handleExperiencePress(item)}
+        activeOpacity={0.9}
+      >
+        <BlurView intensity={60} style={styles.cardBlur}>
+          <LinearGradient
+            colors={['rgba(40,40,45,0.95)', 'rgba(30,30,35,0.98)']}
+            style={styles.cardGradient}
+          >
+            {/* Card Header with Image */}
+            <View style={styles.cardHeader}>
+              <View style={styles.imageContainer}>
+                {item.photos && item.photos.length > 0 ? (
+                  <Image source={{ uri: item.photos[0] }} style={styles.cardImage} />
+                ) : (
+                  <LinearGradient
+                    colors={[Colors.primary.gold, Colors.primary.purple]}
+                    style={styles.imagePlaceholder}
+                  >
+                    <Compass size={32} color={Colors.neutral.white} />
+                  </LinearGradient>
+                )}
+                {item.is_verified && (
+                  <View style={styles.verifiedBadge}>
+                    <Star size={12} color={Colors.neutral.white} fill={Colors.neutral.white} />
+                  </View>
+                )}
+              </View>
+              
+              <View style={styles.cardInfo}>
+                <View style={styles.categoryRow}>
+                  <Text style={styles.categoryTag}>{item.category}</Text>
+                  {item.price_range && (
+                    <Text style={styles.priceTag}>{item.price_range}</Text>
+                  )}
+                </View>
+                <Text style={styles.cardTitle} numberOfLines={2}>
+                  {item.title}
+                </Text>
+                <View style={styles.locationRow}>
+                  <Navigation size={14} color={Colors.neutral.gray400} />
+                  <Text style={styles.cardLocation} numberOfLines={1}>
+                    {item.location_specifics || 'Historic District'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Description */}
+            <Text style={styles.cardDescription} numberOfLines={2}>
+              {item.short_description || item.description}
+            </Text>
+
+            {/* Meta Info */}
+            <View style={styles.cardMeta}>
+              {item.duration_minutes && (
+                <View style={styles.metaItem}>
+                  <Clock size={14} color={Colors.neutral.gray400} />
+                  <Text style={styles.metaText}>
+                    {Math.round(item.duration_minutes / 60)}h {item.duration_minutes % 60}m
+                  </Text>
+                </View>
+              )}
+              {item.best_time && (
+                <View style={styles.metaItem}>
+                  <Sparkles size={14} color={Colors.primary.gold} />
+                  <Text style={styles.metaText}>{item.best_time}</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Footer */}
+            <View style={styles.cardFooter}>
+              <View style={styles.ratingContainer}>
+                <Star size={16} color={Colors.primary.gold} fill={Colors.primary.gold} />
+                <Text style={styles.ratingText}>
+                  {item.avg_rating > 0 ? item.avg_rating.toFixed(1) : 'New'}
+                </Text>
+                {item.total_reviews > 0 && (
+                  <Text style={styles.reviewCount}>({item.total_reviews})</Text>
+                )}
+              </View>
+              
+              <View style={styles.actionButtons}>
+                <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+                  <Heart size={18} color={Colors.neutral.gray300} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+                  <Share2 size={18} color={Colors.neutral.gray300} />
+                </TouchableOpacity>
+                <View style={styles.chevronButton}>
+                  <ChevronRight size={20} color={Colors.primary.gold} />
+                </View>
+              </View>
+            </View>
+
+            {/* AI Recommendation Badge */}
+            {item.id?.startsWith('ai-') && (
+              <View style={styles.aiBadge}>
+                <Sparkles size={12} color={Colors.primary.gold} />
+                <Text style={styles.aiBadgeText}>AI Recommended</Text>
+              </View>
+            )}
+          </LinearGradient>
+        </BlurView>
+      </TouchableOpacity>
+    </MotiView>
+  );
+
+  const renderLoadingState = () => (
+    <View style={styles.loadingContainer}>
+      {[1, 2, 3].map((i) => (
+        <View key={i} style={styles.skeletonCard}>
+          <Skeleton height={180} borderRadius={BorderRadius.lg} />
+        </View>
+      ))}
+    </View>
+  );
+
+  if (recommendationsError) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorBoundary
+          error={recommendationsError as Error}
+          onRetry={refetchRecommendations}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#1a1a1f', '#2a2a30', '#3a3a40', '#4a4a50']}
+        colors={Colors.background.gradient}
         style={styles.background}
       >
-        <ScrollView 
-          style={[styles.scrollView, { paddingTop: insets.top }]}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.greeting}>Discover Culture</Text>
-              <Text style={styles.subtitle}>AI-curated experiences just for you</Text>
-            </View>
-            <TouchableOpacity style={styles.aiButton}>
-              <BlurView intensity={60} style={styles.aiButtonBlur}>
-                <LinearGradient
-                  colors={['rgba(201,169,110,0.3)', 'rgba(139,134,128,0.2)']}
-                  style={styles.aiButtonGradient}
-                >
-                  <Sparkles size={20} color="#c9a96e" />
-                </LinearGradient>
-              </BlurView>
-            </TouchableOpacity>
-          </View>
-
-          {/* Stats Cards */}
-          <View style={styles.statsContainer}>
-            <BlurView intensity={40} style={styles.statCard}>
-              <LinearGradient
-                colors={['rgba(201,169,110,0.15)', 'rgba(139,134,128,0.1)']}
-                style={styles.statCardGradient}
-              >
-                <Text style={styles.statNumber}>127</Text>
-                <Text style={styles.statLabel}>Experiences</Text>
-                <Compass size={16} color="#c9a96e" />
-              </LinearGradient>
-            </BlurView>
-            <BlurView intensity={40} style={styles.statCard}>
-              <LinearGradient
-                colors={['rgba(201,169,110,0.15)', 'rgba(139,134,128,0.1)']}
-                style={styles.statCardGradient}
-              >
-                <Text style={styles.statNumber}>89%</Text>
-                <Text style={styles.statLabel}>Match Rate</Text>
-                <Sparkles size={16} color="#c9a96e" />
-              </LinearGradient>
-            </BlurView>
-            <BlurView intensity={40} style={styles.statCard}>
-              <LinearGradient
-                colors={['rgba(201,169,110,0.15)', 'rgba(139,134,128,0.1)']}
-                style={styles.statCardGradient}
-              >
-                <Text style={styles.statNumber}>4.8★</Text>
-                <Text style={styles.statLabel}>Avg Rating</Text>
-                <Star size={16} color="#c9a96e" />
-              </LinearGradient>
-            </BlurView>
-          </View>
-
-          {/* Categories */}
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            style={styles.categoriesContainer}
-            contentContainerStyle={styles.categoriesContent}
-          >
-            {categories.map((category) => (
-              <TouchableOpacity
-                key={category}
-                style={[
-                  styles.categoryButton,
-                  selectedCategory === category && styles.categoryButtonActive
-                ]}
-                onPress={() => setSelectedCategory(category)}
-              >
-                <Text style={[
-                  styles.categoryText,
-                  selectedCategory === category && styles.categoryTextActive
-                ]}>
-                  {category}
+        <FlatList
+          data={recommendations || []}
+          keyExtractor={(item) => item.id}
+          renderItem={renderExperienceCard}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: insets.bottom + 100 },
+          ]}
+          ListHeaderComponent={
+            <>
+              {renderHeader()}
+              {renderSearchBar()}
+              {renderCategories()}
+              {renderStats()}
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Recommended for You</Text>
+                <TouchableOpacity onPress={onRefresh}>
+                  <Text style={styles.seeAllText}>Refresh</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Colors.primary.gold}
+              colors={[Colors.primary.gold]}
+            />
+          }
+          ListEmptyComponent={
+            isLoadingRecommendations ? (
+              renderLoadingState()
+            ) : (
+              <View style={styles.emptyState}>
+                <Compass size={48} color={Colors.neutral.gray400} />
+                <Text style={styles.emptyTitle}>No experiences found</Text>
+                <Text style={styles.emptySubtitle}>
+                  Try adjusting your filters or search in a different location
                 </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* Experiences */}
-          <View style={styles.experiencesContainer}>
-            <Text style={styles.sectionTitle}>Recommended for You</Text>
-            {mockExperiences.map((experience) => (
-              <ExperienceCard key={experience.id} experience={experience} />
-            ))}
-          </View>
-        </ScrollView>
+              </View>
+            )
+          }
+          showsVerticalScrollIndicator={false}
+        />
       </LinearGradient>
     </View>
   );
@@ -245,211 +451,319 @@ const styles = StyleSheet.create({
   background: {
     flex: 1,
   },
-  scrollView: {
-    flex: 1,
+  listContent: {
+    paddingHorizontal: Spacing.lg,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
+    alignItems: 'flex-start',
+    marginBottom: Spacing.lg,
   },
   greeting: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 4,
+    ...Typography.h1,
+    color: Colors.neutral.white,
   },
-  subtitle: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.8)',
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.xs,
+  },
+  locationText: {
+    ...Typography.bodyMedium,
+    color: Colors.neutral.gray300,
+    marginLeft: Spacing.xs,
   },
   aiButton: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: BorderRadius.full,
     overflow: 'hidden',
+    ...Shadows.medium,
   },
   aiButtonBlur: {
     flex: 1,
-    borderRadius: 24,
+    borderRadius: BorderRadius.full,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(201,169,110,0.3)',
   },
   aiButtonGradient: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  statsContainer: {
+  searchContainer: {
+    marginBottom: Spacing.lg,
+  },
+  searchBar: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginBottom: 20,
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    borderRadius: 20,
     alignItems: 'center',
-    overflow: 'hidden',
+    backgroundColor: Colors.neutral.gray800,
+    borderRadius: BorderRadius.xl,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(201,169,110,0.2)',
+    borderColor: Colors.neutral.gray700,
   },
-  statCardGradient: {
-    padding: 16,
-    alignItems: 'center',
-    width: '100%',
-  },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#c9a96e',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
-    marginBottom: 8,
-  },
-  categoriesContainer: {
-    marginBottom: 20,
-  },
-  categoriesContent: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  categoryButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: 'rgba(201,169,110,0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(201,169,110,0.2)',
-  },
-  categoryButtonActive: {
-    backgroundColor: 'rgba(201,169,110,0.25)',
-    borderColor: 'rgba(201,169,110,0.4)',
-  },
-  categoryText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.8)',
-  },
-  categoryTextActive: {
-    color: '#c9a96e',
-  },
-  experiencesContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 100,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 16,
-  },
-  experienceCard: {
-    marginBottom: 16,
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  cardBlur: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(201,169,110,0.2)',
-  },
-  cardGradient: {
-    padding: 20,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  cardImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 12,
-    marginRight: 12,
-    overflow: 'hidden',
-  },
-  imagePlaceholder: {
+  searchPlaceholder: {
+    ...Typography.bodyMedium,
+    color: Colors.neutral.gray400,
     flex: 1,
+    marginLeft: Spacing.sm,
+  },
+  filterButton: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.full,
+    backgroundColor: `${Colors.primary.gold}20`,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  categoriesContainer: {
+    paddingVertical: Spacing.md,
+    gap: Spacing.sm,
+  },
+  categoryButton: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    backgroundColor: `${Colors.primary.gold}15`,
+    borderWidth: 1,
+    borderColor: `${Colors.primary.gold}30`,
+    marginRight: Spacing.sm,
+  },
+  categoryButtonActive: {
+    backgroundColor: `${Colors.primary.gold}40`,
+    borderColor: Colors.primary.gold,
+  },
+  categoryText: {
+    ...Typography.bodySmall,
+    color: Colors.neutral.gray300,
+    fontWeight: '600',
+  },
+  categoryTextActive: {
+    color: Colors.primary.gold,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    marginBottom: Spacing.xl,
+  },
+  statCard: {
+    flex: 1,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+  },
+  statBlur: {
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+  },
+  statGradient: {
+    padding: Spacing.md,
+    alignItems: 'center',
+  },
+  statValue: {
+    ...Typography.h3,
+    marginTop: Spacing.xs,
+  },
+  statLabel: {
+    ...Typography.caption,
+    color: Colors.neutral.gray400,
+    marginTop: Spacing.xs,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+    marginTop: Spacing.md,
+  },
+  sectionTitle: {
+    ...Typography.h2,
+    color: Colors.neutral.white,
+  },
+  seeAllText: {
+    ...Typography.bodySmall,
+    color: Colors.primary.gold,
+  },
+  experienceCard: {
+    marginBottom: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    ...Shadows.medium,
+  },
+  cardBlur: {
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+  },
+  cardGradient: {
+    padding: Spacing.md,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    marginBottom: Spacing.md,
+  },
+  imageContainer: {
+    position: 'relative',
+    marginRight: Spacing.md,
+  },
+  cardImage: {
+    width: 100,
+    height: 100,
+    borderRadius: BorderRadius.md,
+  },
+  imagePlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: BorderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  verifiedBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    width: 24,
+    height: 24,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.semantic.success,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: Colors.neutral.gray900,
+  },
   cardInfo: {
     flex: 1,
+    justifyContent: 'center',
+  },
+  categoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
+  categoryTag: {
+    ...Typography.caption,
+    color: Colors.primary.gold,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  priceTag: {
+    ...Typography.caption,
+    color: Colors.neutral.gray400,
+    marginLeft: Spacing.sm,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'rgba(255,255,255,0.9)',
-    marginBottom: 4,
+    ...Typography.h4,
+    color: Colors.neutral.white,
+    marginBottom: Spacing.xs,
   },
-  cardCategory: {
-    fontSize: 14,
-    color: '#c9a96e',
-    fontWeight: '600',
-    marginBottom: 8,
+  cardLocation: {
+    ...Typography.bodySmall,
+    color: Colors.neutral.gray400,
+    marginLeft: Spacing.xs,
+    flex: 1,
+  },
+  cardDescription: {
+    ...Typography.bodyMedium,
+    color: Colors.neutral.gray300,
+    marginBottom: Spacing.md,
+    lineHeight: 20,
   },
   cardMeta: {
     flexDirection: 'row',
-    gap: 16,
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
   },
   metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Spacing.xs,
   },
   metaText: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
-  },
-  cardDescription: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
-    lineHeight: 20,
-    marginBottom: 16,
+    ...Typography.bodySmall,
+    color: Colors.neutral.gray400,
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutral.gray800,
   },
-  footerLeft: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  rating: {
+  ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Spacing.xs,
   },
   ratingText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.9)',
+    ...Typography.bodyMedium,
+    color: Colors.neutral.white,
+    fontWeight: '700',
   },
-  participants: {
+  reviewCount: {
+    ...Typography.caption,
+    color: Colors.neutral.gray400,
+  },
+  actionButtons: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  actionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.neutral.gray800,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chevronButton: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.full,
+        alignItems: 'center',
+    backgroundColor: `${Colors.primary.gold}20`,
+  },
+  aiBadge: {
+    position: 'absolute',
+    top: Spacing.md,
+    right: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${Colors.primary.gold}30`,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.md,
     gap: 4,
   },
-  participantsText: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
+  aiBadgeText: {
+    ...Typography.caption,
+    color: Colors.primary.gold,
+    fontWeight: '700',
   },
-  footerRight: {
-    flexDirection: 'row',
+  loadingContainer: {
+    gap: Spacing.lg,
+  },
+  skeletonCard: {
+    marginBottom: Spacing.lg,
+  },
+  emptyState: {
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    paddingVertical: Spacing.xxl * 2,
   },
-  price: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#c9a96e',
+  emptyTitle: {
+    ...Typography.h3,
+    color: Colors.neutral.white,
+    marginTop: Spacing.lg,
+  },
+  emptySubtitle: {
+    ...Typography.bodyMedium,
+    color: Colors.neutral.gray400,
+    textAlign: 'center',
+    marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
   },
 });
+   

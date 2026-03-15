@@ -1,12 +1,13 @@
 import { Tabs } from "expo-router";
 import React from "react";
-import { Platform } from "react-native";
+import { Platform } from "expo-modules-core";
 import { BlurView } from "expo-blur";
 import {
   Compass,
   Navigation,
   Users,
   User,
+  Cuboid, // Icon for "More"
 } from "lucide-react-native";
 
 export default function TabLayout() {
@@ -31,7 +32,7 @@ export default function TabLayout() {
             height: 88,
           },
         }),
-        tabBarBackground: () => (
+        tabBarBackground: () =>
           Platform.OS === 'ios' ? (
             <BlurView
               intensity={80}
@@ -46,8 +47,7 @@ export default function TabLayout() {
                 borderTopColor: 'rgba(201,169,110,0.2)',
               }}
             />
-          ) : null
-        ),
+          ) : null,
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '500',
@@ -84,6 +84,13 @@ export default function TabLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="more"   // Matches your more.tsx screen
+        options={{
+          title: "More",
+          tabBarIcon: ({ color, size }) => <Cuboid size={size} color={color} />,
         }}
       />
     </Tabs>

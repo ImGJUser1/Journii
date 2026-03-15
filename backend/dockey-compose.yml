@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://journii:journii@db:5432/journii
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+      - GOOGLE_GEMINI_API_KEY=${GOOGLE_GEMINI_API_KEY}
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./backend/app:/app/app
+    networks:
+      - journii-network
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=journii
+      - POSTGRES_PASSWORD=journii
+      - POSTGRES_DB=journii
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - journii-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - journii-network
+
+  # Frontend development server
+  frontend:
+    build: ./frontend
+    ports:
+      - "19000:19000"
+      - "19001:19001"
+      - "19002:19002"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - EXPO_PUBLIC_API_URL=http://localhost:8000/v1
+    networks:
+      - journii-network
+
+volumes:
+  postgres_data:
+
+networks:
+  journii-network:
+    driver: bridge
