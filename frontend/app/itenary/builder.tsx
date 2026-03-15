@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useRef } from 'react';
+// app/itenary/builder.tsx - Production Ready
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,13 +10,16 @@ import {
   Dimensions,
   FlatList,
   Alert,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MotiView } from 'moti';
+import { MotiView, AnimatePresence } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import {
   MapPin,
   Calendar,
@@ -35,26 +39,32 @@ import {
   Utensils,
   Camera,
   Bus,
-  MoreVertical,
+  AlertCircle,
 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { GestureHandlerRootView, PanGestureHandler } from 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
-  useAnimatedGestureHandler,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   runOnJS,
 } from 'react-native-reanimated';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 
-import { useItinerary, useCreateItinerary, useUpdateItinerary, useOptimizeItinerary } from '@/services/api/hooks';
-import { useAIItinerarySuggestions } from '@/services/api/hooks';
+import { 
+  useItinerary, 
+  useCreateItinerary, 
+  useUpdateItinerary, 
+  useOptimizeItinerary,
+  useAIItinerarySuggestions 
+} from '@/services/api/hooks';
 import { useAuthStore } from '@/stores/auth-store';
 import { useUIStore } from '@/stores/ui-store';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/constants/theme';
 
 const { width, height } = Dimensions.get('window');
 
+// Types
 interface ItineraryStop {
   id: string;
   name: string;
@@ -85,6 +95,189 @@ const categoryColors = {
   activity: Colors.semantic.success,
 };
 
+// Memoized Stop Card Component
+const StopCard = memo(({
+  item,
+  index,
+  isExpanded,
+  onToggle,
+  onUpdate,
+  onRemove,
+  totalStops,
+  onReorder,
+}: {
+  item: ItineraryStop;
+  index: number;
+  isExpanded: boolean;
+  onToggle: (id: string) => void;
+  onUpdate: (id: string, updates: Partial<ItineraryStop>) => void;
+  onRemove: (id: string) => void;
+  totalStops: number;
+  onReorder: (from: number, to: number) => void;
+}) => {
+  const CategoryIcon = categoryIcons[item.category];
+  const translateY = useSharedValue(0);
+  const isActive = useSharedValue(false);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+    zIndex: isActive.value ? 1000 : 1,
+    elevation: isActive.value ? 10 : 1,
+  }));
+
+  const handleGestureEvent = useCallback((event: any) => {
+    translateY.value = event.translationY;
+  }, []);
+
+  const handleStateChange = useCallback(({ nativeEvent }: any) => {
+    if (nativeEvent.state === State.END) {
+      const moveTo = Math.round((index * 80 + nativeEvent.translationY) / 80);
+      const clampedMoveTo = Math.max(0, Math.min(moveTo, totalStops - 1));
+      
+      if (clampedMoveTo !== index) {
+        runOnJS(onReorder)(index, clampedMoveTo);
+      }
+      
+      translateY.value = withSpring(0);
+      isActive.value = false;
+    } else if (nativeEvent.state === State.BEGAN) {
+      isActive.value = true;
+    }
+  }, [index, totalStops, onReorder]);
+
+  return (
+    <PanGestureHandler
+      onGestureEvent={handleGestureEvent}
+      onHandlerStateChange={handleStateChange}
+      activateAfterLongPress={200}
+    >
+      <Animated.View style={[styles.stopCardContainer, animatedStyle]}>
+        <TouchableOpacity
+          style={styles.stopCard}
+          onPress={() => onToggle(item.id)}
+          activeOpacity={0.9}
+        >
+          <BlurView intensity={60} style={styles.stopBlur}>
+            <LinearGradient
+              colors={['rgba(40,40,45,0.95)', 'rgba(30,30,35,0.98)']}
+              style={styles.stopGradient}
+            >
+              {/* Drag Handle & Number */}
+              <View style={styles.stopHeader}>
+                <View style={styles.dragHandle}>
+                  <GripVertical size={20} color={Colors.neutral.gray500} />
+                </View>
+                <View style={[styles.stopNumber, { backgroundColor: categoryColors[item.category] }]}>
+                  <Text style={styles.stopNumberText}>{index + 1}</Text>
+                </View>
+                
+                <View style={styles.stopInfo}>
+                  <TextInput
+                    style={styles.stopNameInput}
+                    value={item.name}
+                    onChangeText={(text) => onUpdate(item.id, { name: text })}
+                    placeholder="Stop Name"
+                    placeholderTextColor={Colors.neutral.gray400}
+                    onPressIn={(e) => e.stopPropagation()}
+                  />
+                  <View style={styles.stopMeta}>
+                    <CategoryIcon size={14} color={categoryColors[item.category]} />
+                    <Text style={styles.stopCategory}>{item.category}</Text>
+                    <Clock size={14} color={Colors.neutral.gray400} />
+                    <Text style={styles.stopDuration}>{item.duration} min</Text>
+                  </View>
+                </View>
+                
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    onRemove(item.id);
+                  }}
+                >
+                  <Trash2 size={18} color={Colors.semantic.error} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Expanded Details */}
+              <AnimatePresence>
+                {isExpanded && (
+                  <MotiView
+                    from={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                  >
+                    <View style={styles.stopDetails}>
+                      <TextInput
+                        style={styles.locationInput}
+                        value={item.location}
+                        onChangeText={(text) => onUpdate(item.id, { location: text })}
+                        placeholder="Location/Address"
+                        placeholderTextColor={Colors.neutral.gray400}
+                      />
+                      
+                      <View style={styles.durationSelector}>
+                        <Text style={styles.detailLabel}>Duration (minutes)</Text>
+                        <View style={styles.durationButtons}>
+                          {[30, 60, 90, 120, 180, 240].map((mins) => (
+                            <TouchableOpacity
+                              key={mins}
+                              style={[
+                                styles.durationButton,
+                                item.duration === mins && styles.durationButtonActive,
+                              ]}
+                              onPress={() => onUpdate(item.id, { duration: mins })}
+                            >
+                              <Text
+                                style={[
+                                  styles.durationButtonText,
+                                  item.duration === mins && styles.durationButtonTextActive,
+                                ]}
+                              >
+                                {mins}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+
+                      <TextInput
+                        style={styles.notesInput}
+                        value={item.notes || ''}
+                        onChangeText={(text) => onUpdate(item.id, { notes: text })}
+                        placeholder="Notes (tips, booking info, etc.)"
+                        placeholderTextColor={Colors.neutral.gray400}
+                        multiline
+                        numberOfLines={3}
+                      />
+
+                      {item.priceEstimate && (
+                        <Text style={styles.priceEstimate}>
+                          Est. ${item.priceEstimate}
+                        </Text>
+                      )}
+                    </View>
+                  </MotiView>
+                )}
+              </AnimatePresence>
+
+              <View style={styles.expandIndicator}>
+                {isExpanded ? (
+                  <ChevronUp size={20} color={Colors.neutral.gray400} />
+                ) : (
+                  <ChevronDown size={20} color={Colors.neutral.gray400} />
+                )}
+              </View>
+            </LinearGradient>
+          </BlurView>
+        </TouchableOpacity>
+      </Animated.View>
+    </PanGestureHandler>
+  );
+});
+
+StopCard.displayName = 'StopCard';
+
 export default function ItineraryBuilderScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -92,25 +285,41 @@ export default function ItineraryBuilderScreen() {
   const { isAuthenticated } = useAuthStore();
   const { showToast } = useUIStore();
 
-  const [title, setTitle] = useState('My Trip');
-  const [destination, setDestination] = useState('');
+  // Form state
+  const [title, setTitle] = useState(params.title as string || 'My Trip');
+  const [destination, setDestination] = useState(params.destination as string || '');
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000));
   const [stops, setStops] = useState<ItineraryStop[]>([]);
   const [selectedDay, setSelectedDay] = useState(1);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showAISuggestions, setShowAISuggestions] = useState(false);
   const [expandedStop, setExpandedStop] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const aiSuggestions = useAIItinerarySuggestions();
+  // API hooks
+  const itineraryId = params.id as string | undefined;
+  const { data: existingItinerary, isLoading: isLoadingItinerary } = useItinerary(itineraryId || '');
   const createItinerary = useCreateItinerary();
-  const optimizeItinerary = useOptimizeItinerary('temp');
+  const updateItinerary = useUpdateItinerary(itineraryId || '');
+  const optimizeItinerary = useOptimizeItinerary(itineraryId || '');
+  const aiSuggestions = useAIItinerarySuggestions();
+
+  // Load existing itinerary data
+  React.useEffect(() => {
+    if (existingItinerary) {
+      setTitle(existingItinerary.title);
+      setDestination(existingItinerary.destination);
+      setStartDate(new Date(existingItinerary.start_date));
+      setEndDate(new Date(existingItinerary.end_date));
+      setStops(existingItinerary.stops || []);
+    }
+  }, [existingItinerary]);
 
   const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-  const handleAddStop = () => {
+  const handleAddStop = useCallback(() => {
     const newStop: ItineraryStop = {
-      id: `stop-${Date.now()}`,
+      id: `stop-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       name: 'New Stop',
       location: '',
       coordinates: { lat: 0, lng: 0 },
@@ -119,37 +328,58 @@ export default function ItineraryBuilderScreen() {
       day: selectedDay,
       order: stops.filter(s => s.day === selectedDay).length,
     };
-    setStops([...stops, newStop]);
-  };
+    // app/itenary/builder.tsx - Continued
+    setStops(prev => [...prev, newStop]);
+    setExpandedStop(newStop.id);
+  }, [selectedDay, stops]);
 
-  const handleRemoveStop = (stopId: string) => {
-    setStops(stops.filter(s => s.id !== stopId));
-  };
+  const handleRemoveStop = useCallback((stopId: string) => {
+    Alert.alert(
+      'Remove Stop',
+      'Are you sure you want to remove this stop?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            setStops(prev => prev.filter(s => s.id !== stopId));
+            if (expandedStop === stopId) {
+              setExpandedStop(null);
+            }
+          },
+        },
+      ]
+    );
+  }, [expandedStop]);
 
-  const handleUpdateStop = (stopId: string, updates: Partial<ItineraryStop>) => {
-    setStops(stops.map(s => s.id === stopId ? { ...s, ...updates } : s));
-  };
+  const handleUpdateStop = useCallback((stopId: string, updates: Partial<ItineraryStop>) => {
+    setStops(prev => prev.map(s => 
+      s.id === stopId ? { ...s, ...updates } : s
+    ));
+  }, []);
 
-  const handleReorderStops = (fromIndex: number, toIndex: number) => {
+  const handleReorderStops = useCallback((fromIndex: number, toIndex: number) => {
     const dayStops = stops.filter(s => s.day === selectedDay).sort((a, b) => a.order - b.order);
     const reordered = [...dayStops];
     const [moved] = reordered.splice(fromIndex, 1);
     reordered.splice(toIndex, 0, moved);
     
-    // Update orders
     const updated = reordered.map((stop, idx) => ({ ...stop, order: idx }));
-    setStops(stops.map(s => {
-      const updatedStop = updated.find(u => u.id === s.id);
-      return updatedStop || s;
-    }));
-  };
+    
+    setStops(prev => {
+      const otherStops = prev.filter(s => s.day !== selectedDay);
+      return [...otherStops, ...updated];
+    });
+  }, [stops, selectedDay]);
 
-  const handleGenerateAI = async () => {
+  const handleGenerateAI = useCallback(async () => {
     if (!destination) {
       showToast({ type: 'error', message: 'Please enter a destination first' });
       return;
     }
 
+    setIsGenerating(true);
     try {
       const result = await aiSuggestions.mutateAsync({
         destination,
@@ -163,7 +393,7 @@ export default function ItineraryBuilderScreen() {
       result.days.forEach((day: any, dayIndex: number) => {
         day.stops.forEach((stop: any, stopIndex: number) => {
           aiStops.push({
-            id: `ai-${dayIndex}-${stopIndex}`,
+            id: `ai-${dayIndex}-${stopIndex}-${Date.now()}`,
             name: stop.name,
             location: stop.location || destination,
             coordinates: stop.coordinates || { lat: 0, lng: 0 },
@@ -179,42 +409,104 @@ export default function ItineraryBuilderScreen() {
 
       setStops(aiStops);
       showToast({ type: 'success', message: 'AI itinerary generated!' });
-    } catch (error) {
-      showToast({ type: 'error', message: 'Failed to generate itinerary' });
+    } catch (error: any) {
+      showToast({ type: 'error', message: error.message || 'Failed to generate itinerary' });
+    } finally {
+      setIsGenerating(false);
     }
-  };
+  }, [destination, totalDays, aiSuggestions, showToast]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
+    if (!title || !destination) {
+      showToast({ type: 'error', message: 'Please enter a title and destination' });
+      return;
+    }
+
     try {
-      await createItinerary.mutateAsync({
+      const payload = {
         title,
         destination,
         start_date: startDate.toISOString(),
         end_date: endDate.toISOString(),
-        stops,
-      });
-      showToast({ type: 'success', message: 'Itinerary saved!' });
-      router.back();
-    } catch (error) {
-      showToast({ type: 'error', message: 'Failed to save itinerary' });
-    }
-  };
+        stops: stops.map(s => ({
+          ...s,
+          coordinates: s.coordinates.lat ? s.coordinates : null,
+        })),
+      };
 
-  const handleOptimize = async () => {
+      if (itineraryId) {
+        await updateItinerary.mutateAsync(payload);
+        showToast({ type: 'success', message: 'Itinerary updated!' });
+      } else {
+        await createItinerary.mutateAsync(payload);
+        showToast({ type: 'success', message: 'Itinerary created!' });
+      }
+      
+      router.back();
+    } catch (error: any) {
+      showToast({ type: 'error', message: error.message || 'Failed to save itinerary' });
+    }
+  }, [title, destination, startDate, endDate, stops, itineraryId, updateItinerary, createItinerary, showToast, router]);
+
+  const handleOptimize = useCallback(async () => {
+    if (!itineraryId) {
+      showToast({ type: 'error', message: 'Save itinerary first before optimizing' });
+      return;
+    }
+
     try {
       await optimizeItinerary.mutateAsync();
       showToast({ type: 'success', message: 'Route optimized!' });
-    } catch (error) {
-      showToast({ type: 'error', message: 'Optimization failed' });
+    } catch (error: any) {
+      showToast({ type: 'error', message: error.message || 'Optimization failed' });
     }
-  };
+  }, [itineraryId, optimizeItinerary, showToast]);
+
+  const onDateChange = useCallback((event: DateTimePickerEvent, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      if (event.type === 'set') {
+        // Determine if start or end date based on which was opened
+        // For simplicity, we'll set start date here
+        setStartDate(selectedDate);
+      }
+    }
+  }, []);
+
+  const dayStops = useMemo(() => 
+    stops
+      .filter(s => s.day === selectedDay)
+      .sort((a, b) => a.order - b.order),
+    [stops, selectedDay]
+  );
+
+  const mapRegion = useMemo(() => {
+    const coordinates = dayStops
+      .filter(s => s.coordinates.lat !== 0)
+      .map(s => s.coordinates);
+    
+    if (coordinates.length === 0) {
+      return {
+        latitude: 37.7749,
+        longitude: -122.4194,
+        latitudeDelta: 0.0922,
+        longitudeDelta: 0.0421,
+      };
+    }
+
+    const latitudes = coordinates.map(c => c.lat);
+    const longitudes = coordinates.map(c => c.lng);
+    
+    return {
+      latitude: (Math.min(...latitudes) + Math.max(...latitudes)) / 2,
+      longitude: (Math.min(...longitudes) + Math.max(...longitudes)) / 2,
+      latitudeDelta: Math.max(...latitudes) - Math.min(...latitudes) + 0.05,
+      longitudeDelta: Math.max(...longitudes) - Math.min(...longitudes) + 0.05,
+    };
+  }, [dayStops]);
 
   const renderHeader = () => (
-    <MotiView
-      from={{ opacity: 0, translateY: -20 }}
-      animate={{ opacity: 1, translateY: 0 }}
-      style={[styles.header, { paddingTop: insets.top + Spacing.md }]}
-    >
+    <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
       <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
         <ChevronLeft size={28} color={Colors.neutral.white} />
       </TouchableOpacity>
@@ -239,10 +531,18 @@ export default function ItineraryBuilderScreen() {
         </View>
       </View>
       
-      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-        <Save size={24} color={Colors.primary.gold} />
+      <TouchableOpacity 
+        style={[styles.saveButton, (createItinerary.isPending || updateItinerary.isPending) && styles.saveButtonDisabled]} 
+        onPress={handleSave}
+        disabled={createItinerary.isPending || updateItinerary.isPending}
+      >
+        {createItinerary.isPending || updateItinerary.isPending ? (
+          <ActivityIndicator size="small" color={Colors.primary.gold} />
+        ) : (
+          <Save size={24} color={Colors.primary.gold} />
+        )}
       </TouchableOpacity>
-    </MotiView>
+    </View>
   );
 
   const renderDateSelector = () => (
@@ -266,17 +566,31 @@ export default function ItineraryBuilderScreen() {
         
         <View style={styles.aiButtonContainer}>
           <TouchableOpacity
-            style={styles.aiGenerateButton}
+            style={[styles.aiGenerateButton, isGenerating && styles.aiGenerateButtonDisabled]}
             onPress={handleGenerateAI}
-            disabled={aiSuggestions.isPending}
+            disabled={isGenerating || aiSuggestions.isPending}
           >
-            <Sparkles size={18} color={Colors.neutral.white} />
-            <Text style={styles.aiButtonText}>
-              {aiSuggestions.isPending ? 'Generating...' : 'AI Generate'}
-            </Text>
+            {isGenerating || aiSuggestions.isPending ? (
+              <ActivityIndicator size="small" color={Colors.neutral.white} />
+            ) : (
+              <>
+                <Sparkles size={18} color={Colors.neutral.white} />
+                <Text style={styles.aiButtonText}>AI Generate</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </BlurView>
+      
+      {showDatePicker && (
+        <DateTimePicker
+          value={startDate}
+          mode="date"
+          display="default"
+          onChange={onDateChange}
+          minimumDate={new Date()}
+        />
+      )}
     </MotiView>
   );
 
@@ -311,225 +625,144 @@ export default function ItineraryBuilderScreen() {
     </ScrollView>
   );
 
-  const renderMap = () => {
-    const dayStops = stops.filter(s => s.day === selectedDay);
-    const coordinates = dayStops.map(s => s.coordinates).filter(c => c.lat !== 0);
-
-    return (
-      <View style={styles.mapContainer}>
-        <MapView
-          provider={PROVIDER_GOOGLE}
-          style={styles.map}
-          region={{
-            latitude: coordinates[0]?.lat || 37.7749,
-            longitude: coordinates[0]?.lng || -122.4194,
-            latitudeDelta: 0.0922,
-            longitudeDelta: 0.0421,
-          }}
+  const renderMap = () => (
+    <View style={styles.mapContainer}>
+      <MapView
+        provider={PROVIDER_GOOGLE}
+        style={styles.map}
+        region={mapRegion}
+      >
+        {dayStops.map((stop, index) => (
+          <Marker
+            key={stop.id}
+            coordinate={{
+              latitude: stop.coordinates.lat || mapRegion.latitude,
+              longitude: stop.coordinates.lng || mapRegion.longitude,
+            }}
+            title={stop.name}
+          >
+            <View style={[styles.mapMarker, { backgroundColor: categoryColors[stop.category] }]}>
+              <Text style={styles.mapMarkerText}>{index + 1}</Text>
+            </View>
+          </Marker>
+        ))}
+        {dayStops.filter(s => s.coordinates.lat !== 0).length > 1 && (
+          <Polyline
+            coordinates={dayStops.filter(s => s.coordinates.lat !== 0).map(s => s.coordinates)}
+            strokeColor={Colors.primary.gold}
+            strokeWidth={3}
+          />
+        )}
+      </MapView>
+      
+      {itineraryId && (
+        <TouchableOpacity 
+          style={[styles.optimizeButton, optimizeItinerary.isPending && styles.optimizeButtonDisabled]} 
+          onPress={handleOptimize}
+          disabled={optimizeItinerary.isPending}
         >
-          {dayStops.map((stop, index) => (
-            <Marker
-              key={stop.id}
-              coordinate={{
-                latitude: stop.coordinates.lat || 37.7749,
-                longitude: stop.coordinates.lng || -122.4194,
-              }}
-              title={stop.name}
-            >
-              <View style={[styles.mapMarker, { backgroundColor: categoryColors[stop.category] }]}>
-                <Text style={styles.mapMarkerText}>{index + 1}</Text>
-              </View>
-            </Marker>
-          ))}
-          {coordinates.length > 1 && (
-            <Polyline
-              coordinates={coordinates}
-              strokeColor={Colors.primary.gold}
-              strokeWidth={3}
-            />
+          {optimizeItinerary.isPending ? (
+            <ActivityIndicator size="small" color={Colors.neutral.white} />
+          ) : (
+            <>
+              <Navigation size={16} color={Colors.neutral.white} />
+              <Text style={styles.optimizeText}>Optimize Route</Text>
+            </>
           )}
-        </MapView>
-        
-        <TouchableOpacity style={styles.optimizeButton} onPress={handleOptimize}>
-          <Navigation size={16} color={Colors.neutral.white} />
-          <Text style={styles.optimizeText}>Optimize Route</Text>
         </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  const toggleStop = useCallback((id: string) => {
+    setExpandedStop(prev => prev === id ? null : id);
+  }, []);
+
+  const renderStopCard = useCallback(({ item, index }: { item: ItineraryStop; index: number }) => (
+    <StopCard
+      item={item}
+      index={index}
+      isExpanded={expandedStop === item.id}
+      onToggle={toggleStop}
+      onUpdate={handleUpdateStop}
+      onRemove={handleRemoveStop}
+      totalStops={dayStops.length}
+      onReorder={handleReorderStops}
+    />
+  ), [expandedStop, toggleStop, handleUpdateStop, handleRemoveStop, dayStops.length, handleReorderStops]);
+
+  if (isLoadingItinerary) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color={Colors.primary.gold} />
+        <Text style={styles.loadingText}>Loading itinerary...</Text>
       </View>
     );
-  };
-
-  const renderStopCard = ({ item, index }: { item: ItineraryStop; index: number }) => {
-    const isExpanded = expandedStop === item.id;
-    const CategoryIcon = categoryIcons[item.category];
-
-    return (
-      <MotiView
-        from={{ opacity: 0, translateX: -50 }}
-        animate={{ opacity: 1, translateX: 0 }}
-        transition={{ delay: index * 100 }}
-      >
-        <TouchableOpacity
-          style={styles.stopCard}
-          onPress={() => setExpandedStop(isExpanded ? null : item.id)}
-          activeOpacity={0.9}
-        >
-          <BlurView intensity={60} style={styles.stopBlur}>
-            <LinearGradient
-              colors={['rgba(40,40,45,0.95)', 'rgba(30,30,35,0.98)']}
-              style={styles.stopGradient}
-            >
-              {/* Drag Handle & Number */}
-              <View style={styles.stopHeader}>
-                <View style={styles.dragHandle}>
-                  <GripVertical size={20} color={Colors.neutral.gray500} />
-                </View>
-                <View style={[styles.stopNumber, { backgroundColor: categoryColors[item.category] }]}>
-                  <Text style={styles.stopNumberText}>{index + 1}</Text>
-                </View>
-                
-                <View style={styles.stopInfo}>
-                  <TextInput
-                    style={styles.stopNameInput}
-                    value={item.name}
-                    onChangeText={(text) => handleUpdateStop(item.id, { name: text })}
-                    placeholder="Stop Name"
-                    placeholderTextColor={Colors.neutral.gray400}
-                  />
-                  <View style={styles.stopMeta}>
-                    <CategoryIcon size={14} color={categoryColors[item.category]} />
-                    <Text style={styles.stopCategory}>{item.category}</Text>
-                    <Clock size={14} color={Colors.neutral.gray400} />
-                    <Text style={styles.stopDuration}>{item.duration} min</Text>
-                  </View>
-                </View>
-                
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={() => handleRemoveStop(item.id)}
-                >
-                  <Trash2 size={18} color={Colors.semantic.error} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Expanded Details */}
-              {isExpanded && (
-                <View style={styles.stopDetails}>
-                  <TextInput
-                    style={styles.locationInput}
-                    value={item.location}
-                    onChangeText={(text) => handleUpdateStop(item.id, { location: text })}
-                    placeholder="Location/Address"
-                    placeholderTextColor={Colors.neutral.gray400}
-                  />
-                  
-                  <View style={styles.durationSelector}>
-                    <Text style={styles.detailLabel}>Duration (minutes)</Text>
-                    <View style={styles.durationButtons}>
-                      {[30, 60, 90, 120, 180, 240].map((mins) => (
-                        <TouchableOpacity
-                          key={mins}
-                          style={[
-                            styles.durationButton,
-                            item.duration === mins && styles.durationButtonActive,
-                          ]}
-                          onPress={() => handleUpdateStop(item.id, { duration: mins })}
-                        >
-                          <Text
-                            style={[
-                              styles.durationButtonText,
-                              item.duration === mins && styles.durationButtonTextActive,
-                            ]}
-                          >
-                            {mins}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-
-                  <TextInput
-                    style={styles.notesInput}
-                    value={item.notes || ''}
-                    onChangeText={(text) => handleUpdateStop(item.id, { notes: text })}
-                    placeholder="Notes (tips, booking info, etc.)"
-                    placeholderTextColor={Colors.neutral.gray400}
-                    multiline
-                    numberOfLines={3}
-                  />
-
-                  {item.priceEstimate && (
-                    <Text style={styles.priceEstimate}>
-                      Est. ${item.priceEstimate}
-                    </Text>
-                  )}
-                </View>
-              )}
-
-              <View style={styles.expandIndicator}>
-                {isExpanded ? (
-                  <ChevronUp size={20} color={Colors.neutral.gray400} />
-                ) : (
-                  <ChevronDown size={20} color={Colors.neutral.gray400} />
-                )}
-              </View>
-            </LinearGradient>
-          </BlurView>
-        </TouchableOpacity>
-      </MotiView>
-    );
-  };
-
-  const dayStops = stops
-    .filter(s => s.day === selectedDay)
-    .sort((a, b) => a.order - b.order);
+  }
 
   return (
     <GestureHandlerRootView style={styles.container}>
-      <LinearGradient colors={Colors.background.gradient} style={styles.background}>
-        {renderHeader()}
-        {renderDateSelector()}
-        {renderDaySelector()}
-        {renderMap()}
-        
-        <FlatList
-          data={dayStops}
-          keyExtractor={(item) => item.id}
-          renderItem={renderStopCard}
-          contentContainerStyle={styles.stopsList}
-          ListHeaderComponent={
-            <View style={styles.stopsHeader}>
-              <Text style={styles.stopsTitle}>
-                Day {selectedDay} Stops ({dayStops.length})
-              </Text>
-              <TouchableOpacity style={styles.addButton} onPress={handleAddStop}>
-                <Plus size={20} color={Colors.neutral.white} />
-              </TouchableOpacity>
-            </View>
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyStops}>
-              <MapPin size={48} color={Colors.neutral.gray400} />
-              <Text style={styles.emptyTitle}>No stops yet</Text>
-              <Text style={styles.emptySubtitle}>
-                Tap + to add stops or use AI to generate an itinerary
-              </Text>
-            </View>
-          }
-          showsVerticalScrollIndicator={false}
-        />
-        
-        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + Spacing.md }]}>
-          <TouchableOpacity style={styles.collaborateButton}>
-            <Users size={20} color={Colors.neutral.white} />
-            <Text style={styles.collaborateText}>Invite</Text>
-          </TouchableOpacity>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.container}
+      >
+        <LinearGradient colors={Colors.background.gradient} style={styles.background}>
+          <FlatList
+            data={dayStops}
+            keyExtractor={(item) => item.id}
+            renderItem={renderStopCard}
+            contentContainerStyle={[
+              styles.stopsList,
+              { paddingBottom: insets.bottom + 100 },
+            ]}
+            ListHeaderComponent={
+              <>
+                {renderHeader()}
+                {renderDateSelector()}
+                {renderDaySelector()}
+                {renderMap()}
+                <View style={styles.stopsHeader}>
+                  <Text style={styles.stopsTitle}>
+                    Day {selectedDay} Stops ({dayStops.length})
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.addButton} 
+                    onPress={handleAddStop}
+                    disabled={dayStops.length >= 8}
+                  >
+                    <Plus size={20} color={Colors.neutral.white} />
+                  </TouchableOpacity>
+                </View>
+              </>
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyStops}>
+                <MapPin size={48} color={Colors.neutral.gray400} />
+                <Text style={styles.emptyTitle}>No stops yet</Text>
+                <Text style={styles.emptySubtitle}>
+                  Tap + to add stops or use AI to generate an itinerary
+                </Text>
+              </View>
+            }
+            showsVerticalScrollIndicator={false}
+            initialNumToRender={5}
+            maxToRenderPerBatch={5}
+            windowSize={10}
+          />
           
-          <TouchableOpacity style={styles.shareButton}>
-            <Share2 size={20} color={Colors.neutral.white} />
-            <Text style={styles.shareText}>Share</Text>
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
+          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + Spacing.md }]}>
+            <TouchableOpacity style={styles.collaborateButton}>
+              <Users size={20} color={Colors.neutral.white} />
+              <Text style={styles.collaborateText}>Invite</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.shareButton}>
+              <Share2 size={20} color={Colors.neutral.white} />
+              <Text style={styles.shareText}>Share</Text>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </KeyboardAvoidingView>
     </GestureHandlerRootView>
   );
 }
@@ -537,6 +770,15 @@ export default function ItineraryBuilderScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   background: { flex: 1 },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    ...Typography.bodyMedium,
+    color: Colors.neutral.gray400,
+    marginTop: Spacing.md,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -562,6 +804,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   saveButton: { padding: Spacing.sm },
+  saveButtonDisabled: { opacity: 0.5 },
   dateContainer: {
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.md,
@@ -597,6 +840,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     gap: Spacing.xs,
   },
+  aiGenerateButtonDisabled: { opacity: 0.6 },
   aiButtonText: {
     ...Typography.bodySmall,
     color: Colors.neutral.white,
@@ -665,6 +909,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     gap: Spacing.xs,
   },
+  optimizeButtonDisabled: { opacity: 0.6 },
   optimizeText: {
     ...Typography.bodySmall,
     color: Colors.neutral.white,
@@ -672,18 +917,15 @@ const styles = StyleSheet.create({
   },
   stopsList: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: 100,
   },
   stopsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Spacing.md,
+    marginTop: Spacing.sm,
   },
-  stopsTitle: {
-    ...Typography.h3,
-    color: Colors.neutral.white,
-  },
+  stopsTitle: { ...Typography.h3, color: Colors.neutral.white },
   addButton: {
     width: 36,
     height: 36,
@@ -692,8 +934,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  stopCardContainer: { marginBottom: Spacing.md },
   stopCard: {
-    marginBottom: Spacing.md,
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
   },
@@ -738,9 +980,7 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Colors.neutral.gray400,
   },
-  deleteButton: {
-    padding: Spacing.sm,
-  },
+  deleteButton: { padding: Spacing.sm },
   stopDetails: {
     marginTop: Spacing.md,
     paddingTop: Spacing.md,
@@ -772,9 +1012,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     backgroundColor: Colors.neutral.gray800,
   },
-  durationButtonActive: {
-    backgroundColor: Colors.primary.gold,
-  },
+  durationButtonActive: { backgroundColor: Colors.primary.gold },
   durationButtonText: {
     ...Typography.bodySmall,
     color: Colors.neutral.gray400,
@@ -797,10 +1035,7 @@ const styles = StyleSheet.create({
     color: Colors.semantic.success,
     marginTop: Spacing.sm,
   },
-  expandIndicator: {
-    alignItems: 'center',
-    marginTop: Spacing.sm,
-  },
+  expandIndicator: { alignItems: 'center', marginTop: Spacing.sm },
   emptyStops: {
     alignItems: 'center',
     justifyContent: 'center',

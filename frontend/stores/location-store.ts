@@ -1,100 +1,74 @@
+// stores/location-store.ts
 import { create } from 'zustand';
 import * as Location from 'expo-location';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 interface LocationState {
-  // State
   currentLocation: {
     latitude: number;
     longitude: number;
-    city?: string;
-    country?: string;
-    address?: string;
+    city: string;
+    country: string;
+    accuracy: number;
   } | null;
-  hasPermission: boolean;
-  isTracking: boolean;
+  isLoading: boolean;
+  error: string | null;
+  permissionStatus: Location.PermissionStatus | null;
   
   // Actions
   requestPermission: () => Promise<boolean>;
-  startTracking: () => Promise<void>;
-  stopTracking: () => void;
-  updateLocation: (location: LocationState['currentLocation']) => void;
-  setLocationFromGPS: () => Promise<void>;
+  fetchCurrentLocation: () => Promise<void>;
+  setLocation: (location: LocationState['currentLocation']) => void;
 }
 
-export const useLocationStore = create<LocationState>()(
-  persist(
-    (set, get) => ({
-      currentLocation: null,
-      hasPermission: false,
-      isTracking: false,
+export const useLocationStore = create<LocationState>((set, get) => ({
+  currentLocation: null,
+  isLoading: false,
+  error: null,
+  permissionStatus: null,
 
-      requestPermission: async () => {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        const granted = status === 'granted';
-        set({ hasPermission: granted });
-        return granted;
-      },
+  requestPermission: async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    set({ permissionStatus: status });
+    return status === Location.PermissionStatus.GRANTED;
+  },
 
-      startTracking: async () => {
-        const { hasPermission } = get();
-        if (!hasPermission) {
-          const granted = await get().requestPermission();
-          if (!granted) return;
-        }
+  fetchCurrentLocation: async () => {
+    set({ isLoading: true, error: null });
+    
+    try {
+      const hasPermission = await get().requestPermission();
+      if (!hasPermission) {
+        throw new Error('Location permission denied');
+      }
 
-        await Location.startLocationUpdatesAsync('location-tracking', {
-          accuracy: Location.Accuracy.Balanced,
-          timeInterval: 30000, // 30 seconds
-          distanceInterval: 100, // 100 meters
-        });
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
 
-        set({ isTracking: true });
-      },
+      // Reverse geocode to get city/country
+      const [geocode] = await Location.reverseGeocodeAsync({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
 
-      stopTracking: async () => {
-        await Location.stopLocationUpdatesAsync('location-tracking');
-        set({ isTracking: false });
-      },
-
-      updateLocation: (location) => set({ currentLocation: location }),
-
-      setLocationFromGPS: async () => {
-        const { hasPermission } = get();
-        if (!hasPermission) {
-          const granted = await get().requestPermission();
-          if (!granted) throw new Error('Location permission denied');
-        }
-
-        const location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-
-        // Reverse geocode to get city/country
-        const [geocode] = await Location.reverseGeocodeAsync({
+      set({
+        currentLocation: {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
-        });
-
-        set({
-          currentLocation: {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            city: geocode?.city || geocode?.subregion,
-            country: geocode?.country,
-            address: geocode ? `${geocode.street}, ${geocode.city}` : undefined,
-          },
-        });
-      },
-    }),
-    {
-      name: 'location-storage',
-      storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({
-        currentLocation: state.currentLocation,
-        hasPermission: state.hasPermission,
-      }),
+          city: geocode.city || geocode.subregion || 'Unknown',
+          country: geocode.country || 'Unknown',
+          accuracy: location.coords.accuracy || 0,
+        },
+        isLoading: false,
+      });
+    } catch (error: any) {
+      set({ 
+        error: error.message || 'Failed to get location', 
+        isLoading: false 
+      });
     }
-  )
-);
+  },
+
+  setLocation: (location) => set({ currentLocation: location }),
+}));

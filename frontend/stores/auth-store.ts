@@ -1,8 +1,22 @@
+// stores/auth-store.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { apiClient } from '@/services/api/client';
+import { API_ENDPOINTS } from '@/services/api/endpoints';
+
+// Secure storage adapter for Zustand
+const secureStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    return await SecureStore.getItemAsync(name);
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    await SecureStore.setItemAsync(name, value);
+  },
+  removeItem: async (name: string): Promise<void> => {
+    await SecureStore.deleteItemAsync(name);
+  },
+};
 
 interface User {
   id: string;
@@ -24,23 +38,26 @@ interface User {
 }
 
 interface AuthState {
-  // State
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  onboardingCompleted: boolean;
+  error: string | null;
   
   // Actions
-  setUser: (user: User | null) => void;
-  setAuthenticated: (value: boolean) => void;
-  setLoading: (value: boolean) => void;
-  completeOnboarding: () => void;
+  login: (email: string, password: string) => Promise<void>;
+  register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
-  updateUser: (updates: Partial<User>) => void;
-  
-  // Computed
-  get isGuest(): boolean;
-  get canAccessPremium(): boolean;
+  fetchProfile: () => Promise<void>;
+  updateProfile: (data: Partial<User>) => Promise<void>;
+  clearError: () => void;
+}
+
+interface RegisterData {
+  email: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+  phone?: string;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -48,42 +65,105 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       isAuthenticated: false,
-      isLoading: true,
-      onboardingCompleted: false,
+      isLoading: false,
+      error: null,
 
-      setUser: (user) => set({ user, isAuthenticated: !!user }),
-      setAuthenticated: (value) => set({ isAuthenticated: value }),
-      setLoading: (value) => set({ isLoading: value }),
-      
-      completeOnboarding: () => set({ onboardingCompleted: true }),
-      
-      logout: async () => {
-        await SecureStore.deleteItemAsync('access_token');
-        await SecureStore.deleteItemAsync('refresh_token');
-        set({ user: null, isAuthenticated: false });
-      },
-      
-      updateUser: (updates) => {
-        const current = get().user;
-        if (current) {
-          set({ user: { ...current, ...updates } });
+      login: async (email: string, password: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await apiClient.post(API_ENDPOINTS.AUTH.LOGIN, {
+            email,
+            password,
+          });
+
+          const { access_token, refresh_token, user } = response.data;
+          
+          // Store tokens securely
+          await SecureStore.setItemAsync('access_token', access_token);
+          await SecureStore.setItemAsync('refresh_token', refresh_token);
+
+          set({ 
+            user, 
+            isAuthenticated: true, 
+            isLoading: false 
+          });
+        } catch (error: any) {
+          set({ 
+            error: error.message || 'Login failed', 
+            isLoading: false 
+          });
+          throw error;
         }
       },
 
-      get isGuest() {
-        return !get().isAuthenticated;
+      register: async (data: RegisterData) => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await apiClient.post(API_ENDPOINTS.AUTH.REGISTER, data);
+          const { access_token, refresh_token, user } = response.data;
+          
+          await SecureStore.setItemAsync('access_token', access_token);
+          await SecureStore.setItemAsync('refresh_token', refresh_token);
+
+          set({ 
+            user, 
+            isAuthenticated: true, 
+            isLoading: false 
+          });
+        } catch (error: any) {
+          set({ 
+            error: error.message || 'Registration failed', 
+            isLoading: false 
+          });
+          throw error;
+        }
       },
-      
-      get canAccessPremium() {
-        return get().user?.is_premium || false;
+
+      logout: async () => {
+        try {
+          await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
+        } finally {
+          await SecureStore.deleteItemAsync('access_token');
+          await SecureStore.deleteItemAsync('refresh_token');
+          set({ 
+            user: null, 
+            isAuthenticated: false, 
+            error: null 
+          });
+        }
       },
+
+      fetchProfile: async () => {
+        try {
+          const response = await apiClient.get(API_ENDPOINTS.AUTH.ME);
+          set({ user: response.data });
+        } catch (error) {
+          // Silently fail - auth interceptor will handle 401
+        }
+      },
+
+      updateProfile: async (data: Partial<User>) => {
+        set({ isLoading: true });
+        try {
+          const response = await apiClient.patch(
+            API_ENDPOINTS.AUTH.UPDATE_PROFILE, 
+            data
+          );
+          set({ user: response.data, isLoading: false });
+        } catch (error: any) {
+          set({ error: error.message, isLoading: false });
+          throw error;
+        }
+      },
+
+      clearError: () => set({ error: null }),
     }),
     {
       name: 'auth-storage',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => secureStorage),
       partialize: (state) => ({ 
-        onboardingCompleted: state.onboardingCompleted,
-        // Don't persist user - get from secure storage/API
+        user: state.user,
+        isAuthenticated: state.isAuthenticated 
       }),
     }
   )
