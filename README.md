@@ -1,19 +1,18 @@
-# 🌍 Journii – AI-Driven Cultural Journey Navigator & Commuter Companion
+<<<<<<< HEAD
+Journii
+=======
 
-**Journii** is your **AI-powered cultural journey navigator** and **safe commuter companion**.
-It seamlessly blends travel, culture, social connection, and mobility — helping users explore authentic experiences, plan smooth commutes, and engage with a global community.
+>>>>>>> b65092d1915003b0aff48b08fca9d6b47e255fd6
+Journii is an AI-driven cultural journey navigator and commuter companion app offering personalized experience recommendations, real-time transit routing, social travel matching, safety alerts, dynamic itineraries, community storytelling, and gamified rewards. Explore culture and commute safely with AI-powered guidance.
+Features
 
----
-
-## ✨ Key Features
-
-* **🎭 Cultural Explorer** – Personalized recommendations for local events, artisan workshops, hidden gems, and food trails.
-* **🚌 Smart Transit Planner** – Real-time transit guidance with filters for **eco-friendly**, **fastest**, or **scenic** routes.
-* **🤝 Social Companion** – Match with like-minded travelers or locals to share journeys.
-* **📅 Dynamic Itinerary Builder** – Auto-generated, customizable itineraries with live updates.
-* **🌐 Community Sharing** – A space to share stories, itineraries, and cultural insights.
-* **🏆 Gamified Rewards** – XP, points, and cultural achievement badges.
-* **🔒 Secure Access** – JWT-based authentication for safe login and data handling.
+Cultural Explorer: AI-driven recommendations for cultural events, artisan workshops, and food tours.
+Transit Planner: Real-time transit routing with preferences for eco-friendly or scenic routes.
+Social Companion: Match with like-minded travelers for shared experiences.
+Itinerary Builder: Dynamic, customizable travel itineraries.
+Community Sharing: Share travel stories and tips with a global community.
+Gamification: Earn points and badges for completing travel activities.
+Authentication: Secure user login with JWT-based authentication.
 
 ---
 
@@ -148,45 +147,16 @@ Journii/
 ├── CONTRIBUTING.md
 ├── LICENSE
 ├── README.md
-├── tree.txt
-```
 
----
-
-## 💰 Monetization Roadmap
-
-* **Dealsbe listing** for exclusive discounts & travel perks
-* **Premium add-ons**:
-
-  * Advanced AI-powered cultural recommendations
-  * Real-time advanced transit analytics
-  * Trust-verified companion matching
-
----
-
-## 🤝 Contributing
-
-We love contributions!
-
-* Follow [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
-* Submit feature requests, bug reports, or PRs.
-
----
-
-## ❤️ Support the Project
-
-If you find Journii valuable, support us via **GitHub Sponsors** 🙌.
-Your help powers ongoing development and global cultural exchange.
-
----
-
-## 📜 License
-
-MIT License – see [LICENSE](./LICENSE).
-
----
-
-## 📬 Contact
-
-For inquiries, issues, or collaborations, reach out via GitHub Issues or email:
-📧 **[your-email@example.com](mailto:your-email@example.com)**
+Contributing
+We welcome contributions! Please read CONTRIBUTING.md for guidelines on how to contribute, including coding standards and pull request processes.
+Support the Project
+Love Journii? Support us via GitHub Sponsors to help maintain and improve the app!
+License
+MIT License. See LICENSE for details.
+Contact
+<<<<<<< HEAD
+For questions, open an issue on GitHub or contact the maintainers at [your-email@example.com].
+=======
+For questions, open an issue on GitHub or contact the maintainers at [your-email@example.com]..
+>>>>>>> b65092d1915003b0aff48b08fca9d6b47e255fd6
