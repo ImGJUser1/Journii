@@ -1,11 +1,84 @@
-fastapi==0.103.0
-uvicorn==0.23.2
-httpx==0.24.1
-pydantic==2.4.2
+# FastAPI & Server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+gunicorn==21.2.0
+python-multipart==0.0.6
+
+# Pydantic & Validation
+pydantic==2.5.0
+pydantic-settings==2.1.0
+email-validator==2.1.0
+
+# Database
+sqlalchemy[asyncio]==2.0.23
+asyncpg==0.29.0
+alembic==1.12.1
+psycopg2-binary==2.9.9  # For Alembic sync operations
+
+# Redis & Caching
+redis==5.0.1
+hiredis==2.2.3
+
+# Security & Auth
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.1.1
+PyJWT==2.8.0
+
+# HTTP Clients
+httpx==0.25.2
+aiohttp==3.9.1
+
+# AWS / S3
+boto3==1.34.0
+botocore==1.34.0
+
+# Google APIs
+google-generativeai==0.3.0
+google-auth==2.23.4
+google-auth-oauthlib==1.1.0
+
+# Image/Video Processing
+Pillow==10.1.0
+ffmpeg-python==0.2.0
+
+# Geospatial
+geoalchemy2==0.14.2
+shapely==2.0.2
+
+# Utilities
 python-dotenv==1.0.0
-sqlalchemy==2.0.20
-aiohttp==3.8.5
-pytest==8.3.2
-flake8==7.1.0
-python-jose==3.3.0
-bcrypt==4.2.0
+orjson==3.9.10
+ujson==5.8.0
+structlog==23.2.0
+python-json-logger==2.0.7
+
+# Background Tasks (Celery)
+celery==5.3.4
+flower==2.0.1  # Celery monitoring
+redis==5.0.1  # Celery broker
+
+# Monitoring & Observability
+sentry-sdk==1.38.0
+prometheus-client==0.19.0
+opentelemetry-api==1.21.0
+opentelemetry-sdk==1.21.0
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+httpx==0.25.2  # For TestClient
+factory-boy==3.3.0
+faker==20.1.0
+
+# Development
+black==23.11.0
+isort==5.12.0
+flake8==6.1.0
+mypy==1.7.1
+pre-commit==3.6.0
+
+# Production Server
+uvloop==0.19.0
+httptools==0.6.1

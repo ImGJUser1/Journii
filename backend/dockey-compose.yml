@@ -1,24 +1,48 @@
 version: '3.8'
 
 services:
+  # ==========================================================================
+  # API Server
+  # ==========================================================================
   api:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://journii:journii@db:5432/journii
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - DATABASE_URL=postgresql+asyncpg://journii:journii@db:5432/journii
       - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=${SECRET_KEY}
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
       - GOOGLE_GEMINI_API_KEY=${GOOGLE_GEMINI_API_KEY}
       - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-journii-media-dev}
+      - S3_ENDPOINT_URL=${S3_ENDPOINT_URL:-http://minio:9000}
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     volumes:
-      - ./backend/app:/app/app
+      - ./backend/app:/app/app:ro  # Mount for development hot-reload
+      - ./logs:/app/logs
     networks:
       - journii-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # ==========================================================================
+  # Database
+  # ==========================================================================
   db:
     image: postgres:15-alpine
     environment:
@@ -27,35 +51,135 @@ services:
       - POSTGRES_DB=journii
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
     networks:
       - journii-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U journii"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
+  # ==========================================================================
+  # Redis
+  # ==========================================================================
   redis:
     image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
     ports:
       - "6379:6379"
     networks:
       - journii-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
-  # Frontend development server
-  frontend:
-    build: ./frontend
-    ports:
-      - "19000:19000"
-      - "19001:19001"
-      - "19002:19002"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+  # ==========================================================================
+  # MinIO (S3-compatible storage for local dev)
+  # ==========================================================================
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
     environment:
-      - EXPO_PUBLIC_API_URL=http://localhost:8000/v1
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - journii-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================================================
+  # Create MinIO bucket on startup
+  # ==========================================================================
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10 &&
+      /usr/bin/mc alias set local http://minio:9000 minioadmin minioadmin &&
+      /usr/bin/mc mb local/journii-media-dev || true &&
+      /usr/bin/mc policy set public local/journii-media-dev &&
+      exit 0
+      "
+    networks:
+      - journii-network
+
+  # ==========================================================================
+  # Celery Worker (Background tasks)
+  # ==========================================================================
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A app.tasks worker --loglevel=info --concurrency=4
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql+asyncpg://journii:journii@db:5432/journii
+      - REDIS_URL=redis://redis:6379/0
+      - C_FORCE_ROOT=true  # Remove in production with proper user
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./backend/app:/app/app:ro
+    networks:
+      - journii-network
+
+  # ==========================================================================
+  # Celery Beat (Scheduled tasks)
+  # ==========================================================================
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A app.tasks beat --loglevel=info
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql+asyncpg://journii:journii@db:5432/journii
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./backend/app:/app/app:ro
+    networks:
+      - journii-network
+
+  # ==========================================================================
+  # Flower (Celery Monitoring)
+  # ==========================================================================
+  flower:
+    image: mher/flower:latest
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - FLOWER_PORT=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
     networks:
       - journii-network
 
 volumes:
   postgres_data:
+  redis_data:
+  minio_data:
 
 networks:
   journii-network:
