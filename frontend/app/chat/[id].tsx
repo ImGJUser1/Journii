@@ -1,450 +1,624 @@
-import React, { useState } from 'react';
+// app/chat/[id].tsx
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  Dimensions,
   FlatList,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  Image,
+  ActivityIndicator,
+  Dimensions,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MotiView } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import {
-  User,
-  Trophy,
+  ArrowLeft,
+  Send,
+  Paperclip,
+  Mic,
+  Image as ImageIcon,
+  MoreVertical,
+  Phone,
+  Video,
+  Check,
+  CheckCheck,
+  Clock,
+  Smile,
   MapPin,
-  Star,
-  Award,
-  Target,
-  Zap,
-  Crown,
-  Settings,
-  Share2,
-  ChevronRight,
-  Shield,
-  Globe,
-  Heart,
-  Bookmark,
-  Camera,
+  Calendar,
 } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { format, isToday, isYesterday, formatDistanceToNow } from 'date-fns';
+import * as ImagePicker from 'expo-image-picker';
 
 import { useAuthStore } from '@/stores/auth-store';
-import { useGamificationProfile } from '@/services/api/hooks';
+import { useUIStore } from '@/stores/ui-store';
+import { useMessages, useSendMessage, useMarkAsRead } from '@/services/api/hooks';
+import { wsService } from '@/services/websocket';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/constants/theme';
+import { useHaptics } from '@/hooks/use-haptics';
 
 const { width } = Dimensions.get('window');
 
-interface Achievement {
+interface Message {
   id: string;
-  title: string;
-  description: string;
-  icon: string;
-  rarity: 'common' | 'rare' | 'epic' | 'legendary';
-  unlockedAt: string;
-  progress?: number;
-  maxProgress?: number;
-}
-
-interface UserStats {
-  tripsCompleted: number;
-  countriesVisited: number;
-  experiencesBooked: number;
-  photosShared: number;
-  totalDistance: string;
-  followers: number;
-  following: number;
-}
-
-const mockAchievements: Achievement[] = [
-  {
-    id: '1',
-    title: 'Cultural Explorer',
-    description: 'Visited 10 cultural experiences',
-    icon: 'compass',
-    rarity: 'rare',
-    unlockedAt: '2 days ago',
-  },
-  {
-    id: '2',
-    title: 'Social Butterfly',
-    description: 'Connected with 25 travel companions',
-    icon: 'users',
-    rarity: 'epic',
-    unlockedAt: '1 week ago',
-  },
-  {
-    id: '3',
-    title: 'Safety Champion',
-    description: 'Maintained 9.5+ safety score for 30 days',
-    icon: 'shield',
-    rarity: 'legendary',
-    unlockedAt: '3 days ago',
-  },
-  {
-    id: '4',
-    title: 'Route Master',
-    description: 'Complete 50 optimized routes',
-    icon: 'target',
-    rarity: 'common',
-    unlockedAt: 'In progress',
-    progress: 32,
-    maxProgress: 50,
-  },
-];
-
-const rarityColors = {
-  common: Colors.neutral.gray400,
-  rare: Colors.semantic.info,
-  epic: Colors.primary.purple,
-  legendary: Colors.primary.gold,
-};
-
-export default function ProfileScreen() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const { user, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'achievements' | 'stats' | 'trips'>('achievements');
-
-  const { data: gamificationData } = useGamificationProfile();
-
-  const userStats: UserStats = {
-    tripsCompleted: 12,
-    countriesVisited: 8,
-    experiencesBooked: 47,
-    photosShared: 156,
-    totalDistance: '12,450 km',
-    followers: 234,
-    following: 189,
+  conversation_id: string;
+  sender_id: string;
+  content: string;
+  message_type: 'text' | 'image' | 'video' | 'audio' | 'location' | 'itinerary_share';
+  media_url?: string;
+  metadata?: any;
+  is_edited: boolean;
+  created_at: string;
+  read_by: string[];
+  reply_to_id?: string;
+  sender: {
+    id: string;
+    full_name: string;
+    avatar_url: string;
   };
+}
 
-  const getAchievementIcon = (icon: string) => {
-    switch (icon) {
-      case 'compass': return Compass;
-      case 'users': return User;
-      case 'shield': return Shield;
-      case 'target': return Target;
-      default: return Trophy;
+interface Conversation {
+  id: string;
+  type: 'direct' | 'group' | 'trip';
+  name?: string;
+  participants: {
+    id: string;
+    full_name: string;
+    avatar_url: string;
+    is_online?: boolean;
+  }[];
+  last_message?: Message;
+  unread_count: number;
+  trip_id?: string;
+}
+
+export default function ChatScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
+  const { showToast } = useUIStore();
+  const { lightImpact, mediumImpact } = useHaptics();
+  
+  const [messageText, setMessageText] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const flatListRef = useRef<FlatList>(null);
+  
+  // Fetch messages
+  const {
+    data: messagesData,
+    isLoading,
+    error,
+    refetch,
+  } = useMessages(id);
+  
+  const sendMessage = useSendMessage();
+  const markAsRead = useMarkAsRead();
+  
+  const messages = messagesData?.messages || [];
+  const conversation = messagesData?.conversation;
+
+  // WebSocket setup
+  useEffect(() => {
+    if (!id || !user) return;
+    
+    // Connect to WebSocket
+    wsService.connect();
+    
+    // Join conversation room
+    wsService.joinConversation(id);
+    
+    // Listen for messages
+    const unsubscribe = wsService.onMessage((message: Message) => {
+      if (message.conversation_id === id) {
+        // New message received - refetch to update
+        refetch();
+        
+        // Mark as read if from other user
+        if (message.sender_id !== user.id) {
+          markAsRead.mutate({ messageIds: [message.id] });
+        }
+      }
+    });
+    
+    // Listen for typing indicators
+    const unsubscribeTyping = wsService.onTyping((data: { userId: string; isTyping: boolean }) => {
+      if (data.userId !== user.id) {
+        setIsTyping(data.isTyping);
+      }
+    });
+    
+    return () => {
+      unsubscribe();
+      unsubscribeTyping();
+      wsService.leaveConversation(id);
+    };
+  }, [id, user, refetch, markAsRead]);
+
+  // Scroll to bottom on new messages
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [messages.length]);
+
+  // Typing indicator debounce
+  const typingTimeoutRef = useRef<NodeJS.Timeout>();
+  const handleTyping = useCallback(() => {
+    wsService.sendTyping(id, true);
+    
+    clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      wsService.sendTyping(id, false);
+    }, 3000);
+  }, [id]);
+
+  const handleSendMessage = useCallback(async () => {
+    if (!messageText.trim() && !replyingTo) return;
+    
+    mediumImpact();
+    
+    const content = messageText.trim();
+    setMessageText('');
+    setReplyingTo(null);
+    
+    try {
+      // Optimistic update
+      const tempMessage: Message = {
+        id: `temp-${Date.now()}`,
+        conversation_id: id,
+        sender_id: user!.id,
+        content,
+        message_type: 'text',
+        is_edited: false,
+        created_at: new Date().toISOString(),
+        read_by: [user!.id],
+        reply_to_id: replyingTo?.id,
+        sender: {
+          id: user!.id,
+          full_name: user!.full_name,
+          avatar_url: user!.avatar_url || '',
+        },
+      };
+      
+      // Send via API (WebSocket will broadcast)
+      await sendMessage.mutateAsync({
+        conversationId: id,
+        content,
+        messageType: 'text',
+        replyToId: replyingTo?.id,
+      });
+      
+      // Also send via WebSocket for real-time
+      wsService.sendMessage(id, content, 'text');
+      
+    } catch (error: any) {
+      showToast({
+        type: 'error',
+        message: 'Failed to send message',
+      });
+    }
+  }, [messageText, id, user, replyingTo, sendMessage, showToast, mediumImpact]);
+
+  const handleImagePick = useCallback(async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      showToast({ type: 'error', message: 'Permission needed to access photos' });
+      return;
+    }
+    
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
+    
+    if (!result.canceled && result.assets) {
+      // Upload and send each image
+      for (const asset of result.assets) {
+        // Upload to S3/MinIO first
+        // Then send message with media_url
+        showToast({ type: 'info', message: 'Sending image...' });
+      }
+    }
+    
+    setShowAttachMenu(false);
+  }, [showToast]);
+
+  const handleCamera = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      showToast({ type: 'error', message: 'Camera permission needed' });
+      return;
+    }
+    
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+    
+    if (!result.canceled) {
+      // Upload and send
+      showToast({ type: 'info', message: 'Sending photo...' });
+    }
+    
+    setShowAttachMenu(false);
+  }, [showToast]);
+
+  const handleLocationShare = useCallback(() => {
+    // Get current location and share
+    showToast({ type: 'info', message: 'Location sharing coming soon' });
+    setShowAttachMenu(false);
+  }, [showToast]);
+
+  const handleItineraryShare = useCallback(() => {
+    router.push({
+      pathname: '/itenary',
+      params: { shareTo: id },
+    });
+    setShowAttachMenu(false);
+  }, [router, id]);
+
+  const formatMessageTime = (dateString: string) => {
+    const date = new Date(dateString);
+    if (isToday(date)) {
+      return format(date, 'h:mm a');
+    } else if (isYesterday(date)) {
+      return 'Yesterday';
+    } else {
+      return format(date, 'MMM d');
     }
   };
 
-  const renderHeader = () => (
-    <MotiView
-      from={{ opacity: 0, translateY: -20 }}
-      animate={{ opacity: 1, translateY: 0 }}
-      style={[styles.header, { paddingTop: insets.top + Spacing.md }]}
-    >
-      <View style={styles.headerActions}>
-        <TouchableOpacity style={styles.iconButton}>
-          <Settings size={24} color={Colors.neutral.white} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.iconButton}>
-          <Share2 size={24} color={Colors.neutral.white} />
-        </TouchableOpacity>
-      </View>
+  const groupMessagesByDate = (messages: Message[]) => {
+    const groups: { date: string; messages: Message[] }[] = [];
+    let currentGroup: { date: string; messages: Message[] } | null = null;
+    
+    messages.forEach((message) => {
+      const date = new Date(message.created_at);
+      const dateKey = format(date, 'yyyy-MM-dd');
+      
+      if (!currentGroup || currentGroup.date !== dateKey) {
+        currentGroup = {
+          date: dateKey,
+          messages: [],
+        };
+        groups.push(currentGroup);
+      }
+      
+      currentGroup.messages.push(message);
+    });
+    
+    return groups;
+  };
 
-      <View style={styles.profileHeader}>
-        <View style={styles.avatarContainer}>
-          <Image
-            source={{ uri: user?.avatar_url || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200' }}
-            style={styles.avatar}
-          />
-          <View style={styles.levelBadge}>
-            <Crown size={14} color={Colors.neutral.white} />
-            <Text style={styles.levelText}>Level {user?.level || 12}</Text>
-          </View>
-        </View>
-
-        <Text style={styles.userName}>{user?.full_name || 'Alex Thompson'}</Text>
-        <Text style={styles.userHandle}>@{user?.email?.split('@')[0] || 'alextraveler'}</Text>
-
-        <View style={styles.followStats}>
-          <View style={styles.followStat}>
-            <Text style={styles.followCount}>{userStats.followers}</Text>
-            <Text style={styles.followLabel}>Followers</Text>
-          </View>
-          <View style={styles.followDivider} />
-          <View style={styles.followStat}>
-            <Text style={styles.followCount}>{userStats.following}</Text>
-            <Text style={styles.followLabel}>Following</Text>
-          </View>
-        </View>
-
-        <TouchableOpacity style={styles.editProfileButton}>
-          <Text style={styles.editProfileText}>Edit Profile</Text>
-        </TouchableOpacity>
-      </View>
-    </MotiView>
-  );
-
-  const renderXPProgress = () => (
-    <MotiView
-      from={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay: 100 }}
-      style={styles.xpContainer}
-    >
-      <BlurView intensity={60} style={styles.xpBlur}>
-        <View style={styles.xpHeader}>
-          <View>
-            <Text style={styles.xpTitle}>Level {user?.level || 12}</Text>
-            <Text style={styles.xpSubtitle}>
-              {user?.xp_points || 2847} / {(user?.level || 12) * 300} XP
-            </Text>
-          </View>
-          <View style={styles.xpBadge}>
-            <Zap size={16} color={Colors.primary.gold} />
-            <Text style={styles.xpBadgeText}>+50 XP to next level</Text>
-          </View>
-        </View>
-
-        <View style={styles.xpProgressBar}>
-          <View
-            style={[
-              styles.xpProgressFill,
-              { width: `${((user?.xp_points || 2847) % 300) / 3}%` },
-            ]}
-          />
-        </View>
-
-        <Text style={styles.xpNextReward}>Next reward: Epic Traveler Badge</Text>
-      </BlurView>
-    </MotiView>
-  );
-
-  const renderQuickStats = () => (
-    <View style={styles.quickStatsContainer}>
-      {[
-        { icon: Globe, value: userStats.countriesVisited, label: 'Countries' },
-        { icon: MapPin, value: userStats.tripsCompleted, label: 'Trips' },
-        { icon: Camera, value: userStats.photosShared, label: 'Photos' },
-        { icon: Award, value: userStats.experiencesBooked, label: 'Experiences' },
-      ].map((stat, index) => (
-        <MotiView
-          key={stat.label}
-          from={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 200 + index * 50 }}
-          style={styles.quickStatCard}
-        >
-          <BlurView intensity={40} style={styles.quickStatBlur}>
-            <stat.icon size={20} color={Colors.primary.gold} />
-            <Text style={styles.quickStatValue}>{stat.value}</Text>
-            <Text style={styles.quickStatLabel}>{stat.label}</Text>
-          </BlurView>
-        </MotiView>
-      ))}
-    </View>
-  );
-
-  const renderTabSelector = () => (
-    <View style={styles.tabContainer}>
-      <BlurView intensity={60} style={styles.tabSelector}>
-        {[
-          { id: 'achievements', label: 'Achievements', icon: Trophy },
-          { id: 'stats', label: 'Statistics', icon: Target },
-          { id: 'trips', label: 'My Trips', icon: MapPin },
-        ].map((tab) => (
-          <TouchableOpacity
-            key={tab.id}
-            style={[styles.tab, activeTab === tab.id && styles.tabActive]}
-            onPress={() => setActiveTab(tab.id as any)}
-          >
-            <tab.icon
-              size={16}
-              color={activeTab === tab.id ? Colors.primary.gold : Colors.neutral.gray400}
-            />
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === tab.id && styles.tabTextActive,
-              ]}
-            >
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </BlurView>
-    </View>
-  );
-
-  const renderAchievementCard = ({ item, index }: { item: Achievement; index: number }) => {
-    const Icon = getAchievementIcon(item.icon);
-    const rarityColor = rarityColors[item.rarity];
+  const renderMessageBubble = ({ item, index }: { item: Message; index: number }) => {
+    const isMe = item.sender_id === user?.id;
+    const showAvatar = !isMe && (
+      index === 0 || 
+      messages[index - 1]?.sender_id !== item.sender_id
+    );
+    const isLastInGroup = 
+      index === messages.length - 1 || 
+      messages[index + 1]?.sender_id !== item.sender_id;
 
     return (
       <MotiView
-        from={{ opacity: 0, translateX: -50 }}
-        animate={{ opacity: 1, translateX: 0 }}
-        transition={{ delay: index * 100 }}
+        from={{ opacity: 0, translateY: 10 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ delay: 50 }}
+        style={[
+          styles.messageContainer,
+          isMe ? styles.myMessageContainer : styles.theirMessageContainer,
+        ]}
       >
-        <TouchableOpacity style={styles.achievementCard} activeOpacity={0.9}>
-          <BlurView intensity={60} style={styles.achievementBlur}>
-            <LinearGradient
-              colors={[`${rarityColor}20`, `${rarityColor}10`]}
-              style={styles.achievementGradient}
-            >
-              <View style={[styles.achievementIcon, { backgroundColor: `${rarityColor}30` }]}>
-                <Icon size={24} color={rarityColor} />
-              </View>
-
-              <View style={styles.achievementInfo}>
-                <View style={styles.achievementHeader}>
-                  <Text style={styles.achievementTitle}>{item.title}</Text>
-                  <View style={[styles.rarityBadge, { backgroundColor: `${rarityColor}30` }]}>
-                    <Text style={[styles.rarityText, { color: rarityColor }]}>
-                      {item.rarity.toUpperCase()}
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={styles.achievementDescription}>{item.description}</Text>
-
-                {item.progress !== undefined && item.maxProgress && (
-                  <View style={styles.progressContainer}>
-                    <View style={styles.progressBar}>
-                      <View
-                        style={[
-                          styles.progressFill,
-                          {
-                            width: `${(item.progress / item.maxProgress) * 100}%`,
-                            backgroundColor: rarityColor,
-                          },
-                        ]}
-                      />
-                    </View>
-                    <Text style={styles.progressText}>
-                      {item.progress}/{item.maxProgress}
-                    </Text>
-                  </View>
+        {!isMe && showAvatar && (
+          <Image
+            source={{ uri: item.sender.avatar_url || 'https://via.placeholder.com/40' }}
+            style={styles.messageAvatar}
+          />
+        )}
+        
+        {!isMe && !showAvatar && <View style={styles.avatarPlaceholder} />}
+        
+        <View style={[
+          styles.messageBubble,
+          isMe ? styles.myBubble : styles.theirBubble,
+          !isLastInGroup && (isMe ? styles.myBubbleGrouped : styles.theirBubbleGrouped),
+        ]}>
+          {item.reply_to_id && (
+            <View style={styles.replyPreview}>
+              <Text style={styles.replyText} numberOfLines={1}>
+                Replying to message
+              </Text>
+            </View>
+          )}
+          
+          {item.message_type === 'text' && (
+            <Text style={[
+              styles.messageText,
+              isMe ? styles.myMessageText : styles.theirMessageText,
+            ]}>
+              {item.content}
+            </Text>
+          )}
+          
+          {item.message_type === 'image' && item.media_url && (
+            <TouchableOpacity activeOpacity={0.9}>
+              <Image
+                source={{ uri: item.media_url }}
+                style={styles.messageImage}
+                resizeMode="cover"
+              />
+            </TouchableOpacity>
+          )}
+          
+          <View style={styles.messageMeta}>
+            <Text style={styles.messageTime}>
+              {formatMessageTime(item.created_at)}
+            </Text>
+            {isMe && (
+              <View style={styles.readStatus}>
+                {item.read_by.length > 1 ? (
+                  <CheckCheck size={14} color={Colors.semantic.success} />
+                ) : (
+                  <Check size={14} color={Colors.neutral.gray400} />
                 )}
-
-                <Text style={styles.unlockedAt}>{item.unlockedAt}</Text>
               </View>
-            </LinearGradient>
-          </BlurView>
-        </TouchableOpacity>
+            )}
+          </View>
+        </View>
       </MotiView>
     );
   };
 
-  const renderStatsGrid = () => (
-    <View style={styles.statsGrid}>
-      {[
-        { label: 'Total Distance', value: userStats.totalDistance, icon: MapPin },
-        { label: 'Safety Score', value: '9.6/10', icon: Shield },
-        { label: 'Response Rate', value: '98%', icon: Zap },
-        { label: 'Member Since', value: '2023', icon: Calendar },
-      ].map((stat, index) => (
-        <MotiView
-          key={stat.label}
-          from={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: index * 50 }}
-          style={styles.statCard}
-        >
-          <BlurView intensity={40} style={styles.statCardBlur}>
-            <stat.icon size={20} color={Colors.primary.gold} />
-            <Text style={styles.statValue}>{stat.value}</Text>
-            <Text style={styles.statLabel}>{stat.label}</Text>
-          </BlurView>
-        </MotiView>
-      ))}
-    </View>
-  );
-
-  const renderTripsList = () => (
-    <View style={styles.tripsContainer}>
-      <Text style={styles.sectionTitle}>Upcoming Trips</Text>
-      <TouchableOpacity style={styles.tripCard}>
-        <BlurView intensity={60} style={styles.tripBlur}>
-          <Image
-            source={{ uri: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=400' }}
-            style={styles.tripImage}
-          />
-          <View style={styles.tripInfo}>
-            <Text style={styles.tripDestination}>Kyoto, Japan</Text>
-            <Text style={styles.tripDates}>Mar 15 - Mar 22, 2026</Text>
-            <View style={styles.tripStatus}>
-              <View style={styles.statusDot} />
-              <Text style={styles.statusText}>Planning</Text>
-            </View>
-          </View>
-          <ChevronRight size={20} color={Colors.neutral.gray400} />
-        </BlurView>
-      </TouchableOpacity>
-
-      <Text style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>Past Trips</Text>
-      <TouchableOpacity style={styles.tripCard}>
-        <BlurView intensity={60} style={styles.tripBlur}>
-          <Image
-            source={{ uri: 'https://images.unsplash.com/photo-1531572753322-ad0ce1af293f?w=400' }}
-            style={styles.tripImage}
-          />
-          <View style={styles.tripInfo}>
-            <Text style={styles.tripDestination}>Rome, Italy</Text>
-            <Text style={styles.tripDates}>Dec 10 - Dec 17, 2025</Text>
-            <View style={styles.tripStatus}>
-              <View style={[styles.statusDot, { backgroundColor: Colors.semantic.success }]} />
-              <Text style={styles.statusText}>Completed</Text>
-            </View>
-          </View>
-          <ChevronRight size={20} color={Colors.neutral.gray400} />
-        </BlurView>
-      </TouchableOpacity>
-    </View>
-  );
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'achievements':
-        return (
-          <FlatList
-            data={mockAchievements}
-            keyExtractor={(item) => item.id}
-            renderItem={renderAchievementCard}
-            contentContainerStyle={styles.listContent}
-            ListHeaderComponent={
-              <Text style={styles.sectionTitle}>Your Achievements</Text>
-            }
-            showsVerticalScrollIndicator={false}
-          />
-        );
-      case 'stats':
-        return (
-          <ScrollView contentContainerStyle={styles.listContent}>
-            <Text style={styles.sectionTitle}>Travel Statistics</Text>
-            {renderStatsGrid()}
-          </ScrollView>
-        );
-      case 'trips':
-        return (
-          <ScrollView contentContainerStyle={styles.listContent}>
-            {renderTripsList()}
-          </ScrollView>
-        );
-      default:
-        return null;
+  const renderDateHeader = (dateString: string) => {
+    const date = new Date(dateString);
+    let label = format(date, 'MMMM d, yyyy');
+    
+    if (isToday(date)) {
+      label = 'Today';
+    } else if (isYesterday(date)) {
+      label = 'Yesterday';
     }
+    
+    return (
+      <View style={styles.dateHeader}>
+        <BlurView intensity={40} style={styles.dateBlur}>
+          <Text style={styles.dateText}>{label}</Text>
+        </BlurView>
+      </View>
+    );
   };
+
+  const messageGroups = useMemo(() => groupMessagesByDate(messages), [messages]);
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color={Colors.primary.gold} />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.errorText}>Failed to load conversation</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
+          <Text style={styles.retryText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const otherParticipant = conversation?.participants.find(p => p.id !== user?.id);
 
   return (
     <View style={styles.container}>
       <LinearGradient colors={Colors.background.gradient} style={styles.background}>
-        <ScrollView
+        {/* Header */}
+        <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
+          <BlurView intensity={60} style={styles.headerBlur}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <ArrowLeft size={24} color={Colors.neutral.white} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.headerInfo}>
+              <Image
+                source={{ 
+                  uri: conversation?.type === 'direct' 
+                    ? otherParticipant?.avatar_url 
+                    : undefined 
+                }}
+                style={styles.headerAvatar}
+              />
+              <View style={styles.headerTextContainer}>
+                <Text style={styles.headerName}>
+                  {conversation?.name || otherParticipant?.full_name || 'Chat'}
+                </Text>
+                {isTyping ? (
+                  <Text style={styles.typingText}>typing...</Text>
+                ) : otherParticipant?.is_online ? (
+                  <Text style={styles.onlineText}>Online</Text>
+                ) : (
+                  <Text style={styles.lastSeen}>Last seen recently</Text>
+                )}
+              </View>
+            </TouchableOpacity>
+            
+            <View style={styles.headerActions}>
+              <TouchableOpacity style={styles.headerAction}>
+                <Phone size={22} color={Colors.neutral.white} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.headerAction}>
+                <Video size={22} color={Colors.neutral.white} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.headerAction}>
+                <MoreVertical size={22} color={Colors.neutral.white} />
+              </TouchableOpacity>
+            </View>
+          </BlurView>
+        </View>
+
+        {/* Messages List */}
+        <FlatList
+          ref={flatListRef}
+          data={messageGroups}
+          keyExtractor={(group) => group.date}
+          renderItem={({ item: group }) => (
+            <View>
+              {renderDateHeader(group.date)}
+              {group.messages.map((message, idx) => (
+                <View key={message.id}>
+                  {renderMessageBubble({ item: message, index: messages.indexOf(message) })}
+                </View>
+              ))}
+            </View>
+          )}
+          contentContainerStyle={[
+            styles.messagesList,
+            { paddingBottom: insets.bottom + 80 },
+          ]}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+          onContentSizeChange={() => {
+            flatListRef.current?.scrollToEnd({ animated: false });
+          }}
+        />
+
+        {/* Reply Preview */}
+        {replyingTo && (
+          <View style={styles.replyBar}>
+            <View style={styles.replyBarContent}>
+              <View style={styles.replyBarLine} />
+              <View style={styles.replyBarInfo}>
+                <Text style={styles.replyBarName}>
+                  {replyingTo.sender_id === user?.id ? 'You' : replyingTo.sender.full_name}
+                </Text>
+                <Text style={styles.replyBarText} numberOfLines={1}>
+                  {replyingTo.content}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={() => setReplyingTo(null)}>
+              <Text style={styles.replyBarCancel}>×</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Input Area */}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
-          {renderHeader()}
-          {renderXPProgress()}
-          {renderQuickStats()}
-          {renderTabSelector()}
-          {renderContent()}
-        </ScrollView>
+          <View style={[styles.inputContainer, { paddingBottom: insets.bottom + Spacing.sm }]}>
+            <BlurView intensity={60} style={styles.inputBlur}>
+              {/* Attachment Menu */}
+              {showAttachMenu && (
+                <View style={styles.attachMenu}>
+                  <TouchableOpacity style={styles.attachOption} onPress={handleImagePick}>
+                    <View style={[styles.attachIcon, { backgroundColor: `${Colors.primary.purple}20` }]}>
+                      <ImageIcon size={24} color={Colors.primary.purple} />
+                    </View>
+                    <Text style={styles.attachText}>Gallery</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity style={styles.attachOption} onPress={handleCamera}>
+                    <View style={[styles.attachIcon, { backgroundColor: `${Colors.semantic.error}20` }]}>
+                      <ImageIcon size={24} color={Colors.semantic.error} />
+                    </View>
+                    <Text style={styles.attachText}>Camera</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity style={styles.attachOption} onPress={handleLocationShare}>
+                    <View style={[styles.attachIcon, { backgroundColor: `${Colors.semantic.success}20` }]}>
+                      <MapPin size={24} color={Colors.semantic.success} />
+                    </View>
+                    <Text style={styles.attachText}>Location</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity style={styles.attachOption} onPress={handleItineraryShare}>
+                    <View style={[styles.attachIcon, { backgroundColor: `${Colors.primary.gold}20` }]}>
+                      <Calendar size={24} color={Colors.primary.gold} />
+                    </View>
+                    <Text style={styles.attachText}>Itinerary</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              
+              <View style={styles.inputRow}>
+                <TouchableOpacity
+                  style={styles.attachButton}
+                  onPress={() => setShowAttachMenu(!showAttachMenu)}
+                >
+                  <Paperclip
+                    size={24}
+                    color={showAttachMenu ? Colors.primary.gold : Colors.neutral.gray400}
+                  />
+                </TouchableOpacity>
+                
+                <View style={styles.textInputContainer}>
+                  <TextInput
+                    style={styles.textInput}
+                    value={messageText}
+                    onChangeText={(text) => {
+                      setMessageText(text);
+                      handleTyping();
+                    }}
+                    placeholder="Message..."
+                    placeholderTextColor={Colors.neutral.gray400}
+                    multiline
+                    maxLength={2000}
+                    onSubmitEditing={handleSendMessage}
+                  />
+                  <TouchableOpacity style={styles.emojiButton}>
+                    <Smile size={20} color={Colors.neutral.gray400} />
+                  </TouchableOpacity>
+                </View>
+                
+                {messageText.trim() ? (
+                  <TouchableOpacity
+                    style={styles.sendButton}
+                    onPress={handleSendMessage}
+                    disabled={sendMessage.isPending}
+                  >
+                    <LinearGradient
+                      colors={[Colors.primary.gold, Colors.primary.purple]}
+                      style={styles.sendGradient}
+                    >
+                      <Send size={20} color={Colors.neutral.white} />
+                    </LinearGradient>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.micButton}
+                    onLongPress={() => setIsRecording(true)}
+                    onPressOut={() => setIsRecording(false)}
+                  >
+                    <Mic size={24} color={Colors.primary.gold} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </BlurView>
+          </View>
+        </KeyboardAvoidingView>
       </LinearGradient>
     </View>
   );
@@ -453,365 +627,298 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   background: { flex: 1 },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    ...Typography.bodyLarge,
+    color: Colors.semantic.error,
+    marginBottom: Spacing.md,
+  },
+  retryButton: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.primary.gold,
+    borderRadius: BorderRadius.md,
+  },
+  retryText: {
+    ...Typography.bodyMedium,
+    color: Colors.neutral.white,
+    fontWeight: '700',
+  },
   header: {
-    paddingHorizontal: Spacing.lg,
+    zIndex: 100,
+  },
+  headerBlur: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: 'rgba(26,26,31,0.9)',
+  },
+  backButton: {
+    padding: Spacing.sm,
+    marginRight: Spacing.sm,
+  },
+  headerInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    marginRight: Spacing.md,
+    borderWidth: 2,
+    borderColor: Colors.primary.gold,
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  headerName: {
+    ...Typography.bodyLarge,
+    color: Colors.neutral.white,
+    fontWeight: '700',
+  },
+  typingText: {
+    ...Typography.bodySmall,
+    color: Colors.semantic.success,
+  },
+  onlineText: {
+    ...Typography.bodySmall,
+    color: Colors.semantic.success,
+  },
+  lastSeen: {
+    ...Typography.bodySmall,
+    color: Colors.neutral.gray400,
   },
   headerActions: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: Spacing.md,
-    marginBottom: Spacing.md,
+    gap: Spacing.sm,
   },
-  iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.full,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    justifyContent: 'center',
+  headerAction: {
+    padding: Spacing.sm,
+  },
+  messagesList: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+  },
+  dateHeader: {
     alignItems: 'center',
+    marginVertical: Spacing.md,
   },
-  profileHeader: {
-    alignItems: 'center',
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginBottom: Spacing.md,
-  },
-  avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: BorderRadius.full,
-    borderWidth: 4,
-    borderColor: Colors.primary.gold,
-  },
-  levelBadge: {
-    position: 'absolute',
-    bottom: -8,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.primary.gold,
+  dateBlur: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
-    gap: Spacing.xs,
-  },
-  levelText: {
-    ...Typography.bodySmall,
-    color: Colors.neutral.white,
-    fontWeight: '700',
-  },
-  userName: {
-    ...Typography.h2,
-    color: Colors.neutral.white,
-    marginTop: Spacing.md,
-  },
-  userHandle: {
-    ...Typography.bodyMedium,
-    color: Colors.neutral.gray400,
-    marginTop: Spacing.xs,
-  },
-  followStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: Spacing.md,
-  },
-  followStat: {
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-  },
-  followDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: Colors.neutral.gray700,
-  },
-  followCount: {
-    ...Typography.h3,
-    color: Colors.neutral.white,
-  },
-  followLabel: {
-    ...Typography.bodySmall,
-    color: Colors.neutral.gray400,
-    marginTop: 2,
-  },
-  editProfileButton: {
-    marginTop: Spacing.lg,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    backgroundColor: `${Colors.primary.gold}20`,
-    borderWidth: 1,
-    borderColor: Colors.primary.gold,
-  },
-  editProfileText: {
-    ...Typography.bodyMedium,
-    color: Colors.primary.gold,
-    fontWeight: '700',
-  },
-  xpContainer: {
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.lg,
-    borderRadius: BorderRadius.lg,
     overflow: 'hidden',
   },
-  xpBlur: {
-    padding: Spacing.md,
-    backgroundColor: 'rgba(40,40,45,0.6)',
+  dateText: {
+    ...Typography.caption,
+    color: Colors.neutral.gray400,
   },
-  xpHeader: {
+  messageContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.xs,
+    maxWidth: '80%',
   },
-  xpTitle: {
-    ...Typography.h4,
+  myMessageContainer: {
+    alignSelf: 'flex-end',
+    flexDirection: 'row-reverse',
+  },
+  theirMessageContainer: {
+    alignSelf: 'flex-start',
+  },
+  messageAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: BorderRadius.full,
+    marginRight: Spacing.xs,
+    alignSelf: 'flex-end',
+    marginBottom: Spacing.xs,
+  },
+  avatarPlaceholder: {
+    width: 28,
+    marginRight: Spacing.xs,
+  },
+  messageBubble: {
+    maxWidth: '100%',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+  },
+  myBubble: {
+    backgroundColor: Colors.primary.gold,
+    borderBottomRightRadius: BorderRadius.sm,
+  },
+  theirBubble: {
+    backgroundColor: Colors.neutral.gray800,
+    borderBottomLeftRadius: BorderRadius.sm,
+  },
+  myBubbleGrouped: {
+    marginRight: 36,
+  },
+  theirBubbleGrouped: {
+    marginLeft: 36,
+  },
+  replyPreview: {
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    padding: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.xs,
+  },
+  replyText: {
+    ...Typography.caption,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  messageText: {
+    ...Typography.bodyMedium,
+    lineHeight: 20,
+  },
+  myMessageText: {
     color: Colors.neutral.white,
   },
-  xpSubtitle: {
-    ...Typography.bodySmall,
-    color: Colors.neutral.gray400,
-    marginTop: 2,
+  theirMessageText: {
+    color: Colors.neutral.white,
   },
-  xpBadge: {
+  messageImage: {
+    width: 200,
+    height: 150,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.xs,
+  },
+  messageMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: `${Colors.primary.gold}20`,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.md,
+    justifyContent: 'flex-end',
+    marginTop: 4,
     gap: 4,
   },
-  xpBadgeText: {
+  messageTime: {
     ...Typography.caption,
-    color: Colors.primary.gold,
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 10,
   },
-  xpProgressBar: {
-    height: 8,
-    backgroundColor: Colors.neutral.gray700,
-    borderRadius: BorderRadius.full,
+  readStatus: {
+    marginLeft: 2,
   },
-  xpProgressFill: {
-    height: '100%',
-    backgroundColor: Colors.primary.gold,
-    borderRadius: BorderRadius.full,
-  },
-  xpNextReward: {
-    ...Typography.caption,
-    color: Colors.neutral.gray400,
-    marginTop: Spacing.sm,
-    textAlign: 'center',
-  },
-  quickStatsContainer: {
+  replyBar: {
     flexDirection: 'row',
-    paddingHorizontal: Spacing.lg,
-    marginTop: Spacing.lg,
-    gap: Spacing.md,
-  },
-  quickStatCard: {
-    flex: 1,
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-  },
-  quickStatBlur: {
+    alignItems: 'center',
+    backgroundColor: Colors.neutral.gray800,
     padding: Spacing.md,
-    alignItems: 'center',
-    backgroundColor: 'rgba(40,40,45,0.6)',
-  },
-  quickStatValue: {
-    ...Typography.h3,
-    color: Colors.primary.gold,
-    marginTop: Spacing.xs,
-  },
-  quickStatLabel: {
-    ...Typography.caption,
-    color: Colors.neutral.gray400,
-    marginTop: 2,
-  },
-  tabContainer: {
-    paddingHorizontal: Spacing.lg,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.md,
-  },
-  tabSelector: {
-    flexDirection: 'row',
-    padding: Spacing.xs,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: 'rgba(40,40,45,0.6)',
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.md,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
     borderRadius: BorderRadius.md,
-    gap: Spacing.xs,
   },
-  tabActive: {
-    backgroundColor: `${Colors.primary.gold}25`,
-  },
-  tabText: {
-    ...Typography.bodySmall,
-    color: Colors.neutral.gray400,
-    fontWeight: '600',
-  },
-  tabTextActive: {
-    color: Colors.primary.gold,
-  },
-  listContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: 100,
-  },
-  sectionTitle: {
-    ...Typography.h3,
-    color: Colors.neutral.white,
-    marginBottom: Spacing.md,
-    marginTop: Spacing.sm,
-  },
-  achievementCard: {
-    marginBottom: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-  },
-  achievementBlur: {
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-  },
-  achievementGradient: {
+  replyBarContent: {
+    flex: 1,
     flexDirection: 'row',
-    padding: Spacing.md,
     alignItems: 'center',
   },
-  achievementIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: BorderRadius.full,
-    justifyContent: 'center',
-    alignItems: 'center',
+  replyBarLine: {
+    width: 4,
+    height: 40,
+    backgroundColor: Colors.primary.gold,
+    borderRadius: 2,
     marginRight: Spacing.md,
   },
-  achievementInfo: {
+  replyBarInfo: {
     flex: 1,
   },
-  achievementHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.xs,
-  },
-  achievementTitle: {
-    ...Typography.bodyLarge,
-    color: Colors.neutral.white,
+  replyBarName: {
+    ...Typography.bodySmall,
+    color: Colors.primary.gold,
     fontWeight: '700',
+    marginBottom: 2,
   },
-  rarityBadge: {
-    paddingHorizontal: Spacing.xs,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
-  },
-  rarityText: {
-    ...Typography.caption,
-    fontWeight: '700',
-  },
-  achievementDescription: {
+  replyBarText: {
     ...Typography.bodySmall,
     color: Colors.neutral.gray400,
-    marginBottom: Spacing.sm,
   },
-  progressContainer: {
-    marginBottom: Spacing.xs,
-  },
-  progressBar: {
-    height: 4,
-    backgroundColor: Colors.neutral.gray700,
-    borderRadius: BorderRadius.full,
-    marginBottom: 4,
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: BorderRadius.full,
-  },
-  progressText: {
-    ...Typography.caption,
+  replyBarCancel: {
+    ...Typography.h3,
     color: Colors.neutral.gray400,
+    paddingHorizontal: Spacing.sm,
   },
-  unlockedAt: {
-    ...Typography.caption,
-    color: Colors.neutral.gray500,
+  inputContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
-  statsGrid: {
+  inputBlur: {
+    backgroundColor: 'rgba(26,26,31,0.95)',
+  },
+  attachMenu: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
+    justifyContent: 'space-around',
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral.gray800,
   },
-  statCard: {
-    width: (width - Spacing.lg * 2 - Spacing.md) / 2,
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-  },
-  statCardBlur: {
-    padding: Spacing.md,
+  attachOption: {
     alignItems: 'center',
-    backgroundColor: 'rgba(40,40,45,0.6)',
-  },
-  statValue: {
-    ...Typography.h4,
-    color: Colors.neutral.white,
-    marginTop: Spacing.xs,
-  },
-  statLabel: {
-    ...Typography.caption,
-    color: Colors.neutral.gray400,
-    marginTop: 2,
-  },
-  tripsContainer: {
-    paddingHorizontal: Spacing.lg,
-  },
-  tripCard: {
-    marginBottom: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-  },
-  tripBlur: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.md,
-    backgroundColor: 'rgba(40,40,45,0.6)',
-  },
-  tripImage: {
-    width: 60,
-    height: 60,
-    borderRadius: BorderRadius.md,
-  },
-  tripInfo: {
-    flex: 1,
-    marginLeft: Spacing.md,
-  },
-  tripDestination: {
-    ...Typography.bodyLarge,
-    color: Colors.neutral.white,
-    fontWeight: '700',
-  },
-  tripDates: {
-    ...Typography.bodySmall,
-    color: Colors.neutral.gray400,
-    marginTop: 2,
-  },
-  tripStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: Spacing.xs,
     gap: Spacing.xs,
   },
-  statusDot: {
-    width: 8,
-    height: 8,
+  attachIcon: {
+    width: 50,
+    height: 50,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.semantic.warning,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  statusText: {
+  attachText: {
     ...Typography.caption,
-    color: Colors.neutral.gray400,
+    color: Colors.neutral.white,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  attachButton: {
+    padding: Spacing.sm,
+  },
+  textInputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.neutral.gray800,
+    borderRadius: BorderRadius.xl,
+    paddingHorizontal: Spacing.md,
+    maxHeight: 100,
+  },
+  textInput: {
+    flex: 1,
+    ...Typography.bodyMedium,
+    color: Colors.neutral.white,
+    paddingVertical: Spacing.sm,
+    maxHeight: 100,
+  },
+  emojiButton: {
+    padding: Spacing.xs,
+  },
+  sendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
+  },
+  sendGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  micButton: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.neutral.gray800,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
