@@ -1,141 +1,441 @@
-Contributing to Journii
-Thank you for your interest in contributing to Journii, a Cultural Journey Navigator and Social Commuter Companion! This project combines a FastAPI backend with a React Native (Expo) frontend to provide personalized travel recommendations, transit planning, and social engagement. We welcome contributions from the community to enhance features, fix bugs, or improve documentation.
-Getting Started
-Prerequisites
+# 🤝 Contributing to Journii
 
-Backend:
-Python 3.10+
-pip, virtualenv
-PostgreSQL (or SQLite for development)
+Thank you for your interest in contributing to **Journii**.
 
+Journii is an **AI-powered travel ecosystem** combining:
 
-Frontend:
-Node.js 18+
-npm 8+
-Expo Go (for mobile testing)
+* 🌍 Cultural discovery
+* 🧠 AI trip planning
+* 🗺 Map-based itinerary building
+* 📸 Travel social media
+* 🤝 Collaborative trip planning
+* 🏨 Global travel marketplace
+* 🚆 Smart transit navigation
+* 🏆 Gamified travel experiences
 
+The platform is built with a **FastAPI backend and a React Native (Expo) frontend**, and integrates AI services to power travel recommendations and trip planning.
 
-Git and a GitHub account
+We welcome contributions that improve:
 
-Project Structure
+* Features
+* Performance
+* Documentation
+* Testing
+* UI/UX
+* Security
+* DevOps tooling
+
+---
+
+# 🚀 Getting Started
+
+## Prerequisites
+
+### Backend
+
+* Python **3.10+**
+* pip
+* virtualenv
+* PostgreSQL *(recommended)* or SQLite *(for development)*
+
+### Frontend
+
+* Node.js **18+**
+* npm **8+**
+* Expo CLI
+* Expo Go (for mobile testing)
+
+### General
+
+* Git
+* GitHub account
+* Basic knowledge of **FastAPI, React Native, and TypeScript**
+
+---
+
+# 📂 Project Structure
+
+```
 Journii/
+│
 ├── backend/
 │   ├── app/
-│   │   ├── main.py
-│   │   ├── routers/
-│   │   ├── schemas/
-│   │   ├── services/
-│   │   ├── utils/
-│   │   ├── models/
-│   │   ├── config.py
-│   │   ├── requirements.txt
+│   │   ├── api/              # API route definitions
+│   │   ├── core/             # Security, config, middleware
+│   │   ├── db/               # Database sessions & Redis
+│   │   ├── models/           # SQLAlchemy models
+│   │   ├── routers/          # Feature-based API routers
+│   │   ├── schemas/          # Pydantic request/response models
+│   │   ├── services/         # Business logic & AI services
+│   │   ├── utils/            # Utility functions
+│   │   ├── websocket/        # Real-time messaging
+│   │   ├── tests/            # Backend tests
+│   │   └── main.py           # FastAPI application entry
+│
 ├── frontend/
 │   ├── app/
-│   │   ├── (tabs)/
-│   │   ├── stores/
-│   ├── package.json
+│   │   ├── (tabs)/           # Main navigation tabs
+│   │   ├── itinerary/        # Trip builder
+│   │   ├── marketplace/      # Travel services marketplace
+│   │   ├── chat/             # Messaging
+│   │   ├── experience/       # Experience pages
+│   │   ├── screens/          # UI screens
+│   │   └── navigation/       # App navigation
+│   │
+│   ├── components/           # UI components
+│   ├── hooks/                # Custom React hooks
+│   ├── services/             # API client + websocket
+│   ├── stores/               # Zustand state stores
+│   └── assets/images/
+│
+├── .github/
 ├── README.md
 ├── CONTRIBUTING.md
+└── LICENSE
+```
 
-Setting Up the Development Environment
+---
 
-Clone the Repository:
-git clone https://github.com/<your-username>/journii.git
-cd journii
+# 🛠 Setting Up the Development Environment
 
+## 1️⃣ Clone the Repository
 
-Backend Setup:
+```bash
+git clone https://github.com/ImGJUser1/Journii.git
+cd Journii
+```
+
+---
+
+# Backend Setup
+
+Navigate to the backend directory.
+
+```bash
 cd backend
+```
+
+Create virtual environment:
+
+```bash
 python -m venv venv
-.\venv\Scripts\activate  # On Windows
+```
+
+Activate it.
+
+### Windows
+
+```bash
+.\venv\Scripts\activate
+```
+
+### macOS/Linux
+
+```bash
+source venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
 pip install -r app/requirements.txt
-python -m uvicorn app.main:app --reload
+```
 
+Create a `.env` file inside:
 
-Ensure .env is configured with DATABASE_URL, GEMINI_API_KEY, etc.
-Backend runs at http://localhost:8000.
+```
+backend/app/.env
+```
 
+Example configuration:
 
-Frontend Setup:
+```env
+DATABASE_URL=sqlite:///journii.db
+JWT_SECRET=your_secret_key
+GEMINI_API_KEY=your_gemini_api_key
+REDIS_URL=redis://localhost:6379
+```
+
+Start the backend server:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Backend will run at:
+
+```
+http://localhost:8000
+```
+
+Interactive API docs:
+
+```
+http://localhost:8000/docs
+```
+
+---
+
+# Frontend Setup
+
+Navigate to frontend.
+
+```bash
 cd frontend
+```
+
+Install dependencies:
+
+```bash
 npm install
+```
+
+Start Expo development server:
+
+```bash
 npm start
+```
 
+Run using:
 
-Use Expo Go to scan the QR code or run on an emulator.
+* 📱 Expo Go (scan QR code)
+* 🤖 Android emulator
+* 🍎 iOS simulator
 
+Make sure the API URL points to your backend:
 
+```
+http://localhost:8000
+```
 
-How to Contribute
+---
 
-Fork the Repository:
+# 🌱 Contribution Workflow
 
-Fork the project on GitHub: https://github.com/<your-username>/journii.
-Clone your fork: git clone https://github.com/<your-username>/journii.git.
+## 1️⃣ Fork the Repository
 
+Fork Journii on GitHub.
 
-Create a Feature Branch:
-git checkout -b feature/your-feature-name
+Then clone your fork:
 
+```bash
+git clone https://github.com/<your-username>/Journii.git
+```
 
-Make Changes:
+---
 
-Follow coding standards (PEP 8 for Python, ESLint for TypeScript).
-Update backend routers (app/routers/) or frontend components (app/(tabs)/).
-Add tests in backend/app/tests/ or frontend/__tests__/.
+## 2️⃣ Create a Branch
 
+Create a branch for your feature or fix.
 
-Commit Changes:
-git add .
-git commit -m "Add feature: your-feature-name"
+```bash
+git checkout -b feature/feature-name
+```
 
+Examples:
 
-Push to Your Fork:
-git push origin feature/your-feature-name
+```
+feature/ai-trip-optimization
+feature/transit-planner
+fix/login-auth-bug
+docs/update-readme
+```
 
+---
 
-Create a Pull Request:
+## 3️⃣ Make Your Changes
 
-Go to the original repository: https://github.com/<your-username>/journii.
-Click "New Pull Request" and select your branch.
-Provide a clear description of your changes and link to any related issues.
+Possible contribution areas:
 
+### Backend
 
+* API endpoints
+* AI recommendation logic
+* database models
+* authentication improvements
+* performance optimizations
+* WebSocket messaging
+* security enhancements
 
-Coding Standards
+Backend directories:
 
-Backend (Python/FastAPI):
-Follow PEP 8.
-Use Pydantic models for request/response validation.
-Handle errors with app/utils/error_handling.py.
+```
+backend/app/routers
+backend/app/services
+backend/app/models
+backend/app/schemas
+```
 
+---
 
-Frontend (React Native/Expo):
-Use TypeScript with ESLint (expo lint).
-Follow NativeWind (Tailwind CSS) for styling.
-Use React Query for API calls and Zustand for state management.
+### Frontend
 
+* UI components
+* trip builder interface
+* travel feed
+* marketplace pages
+* chat interface
+* animations
+* mobile UX improvements
 
-Write clear commit messages (e.g., Fix: Update cultural explorer API endpoint).
+Frontend directories:
 
-Testing
+```
+frontend/app
+frontend/components
+frontend/hooks
+frontend/services
+frontend/stores
+```
 
-Backend: Add tests in app/tests/ using pytest.cd backend
-pytest app/tests/
+---
 
+# 🧪 Testing
 
-Frontend: Add tests in __tests__/ using Jest.cd frontend
+## Backend Tests
+
+Tests are written using **pytest**.
+
+Run backend tests:
+
+```bash
+cd backend
+pytest
+```
+
+Add tests inside:
+
+```
+backend/app/tests/
+```
+
+---
+
+## Frontend Tests
+
+Frontend tests use **Jest**.
+
+Run tests:
+
+```bash
+cd frontend
 npm test
+```
 
+Add tests inside:
 
+```
+frontend/__tests__/
+```
 
-Issues and Feature Requests
+---
 
-Check the GitHub Issues page for open tasks.
-Create a new issue for bugs or feature suggestions, providing detailed information.
+# 🧑‍💻 Coding Standards
 
-Code of Conduct
-We follow a Code of Conduct to ensure a welcoming environment. Please adhere to it in all interactions.
-Questions?
-Contact the maintainers via GitHub Issues or email (add contact email if applicable).
-Thank you for contributing to Journii!
+## Backend (Python)
+
+* Follow **PEP8**
+* Use **type hints**
+* Use **Pydantic schemas** for validation
+* Keep business logic inside **services**
+* Keep routers thin
+
+Example structure:
+
+```
+router → service → database
+```
+
+---
+
+## Frontend (React Native)
+
+* Use **TypeScript**
+* Use **NativeWind** for styling
+* Use **React Query** for API calls
+* Use **Zustand** for state management
+* Write reusable UI components
+
+---
+
+# 📝 Commit Message Guidelines
+
+Use clear commit messages.
+
+Examples:
+
+```
+feat: add AI itinerary optimization
+fix: resolve authentication bug
+docs: update README
+refactor: improve transit service logic
+test: add media API tests
+```
+
+---
+
+# 🐛 Issues and Feature Requests
+
+Check open issues first:
+
+```
+https://github.com/ImGJUser1/Journii/issues
+```
+
+Create an issue if:
+
+* reporting a bug
+* suggesting a feature
+* proposing improvements
+* requesting documentation updates
+
+Provide:
+
+* clear description
+* reproduction steps
+* screenshots if applicable
+
+---
+
+# 🔐 Security Contributions
+
+If you discover a **security vulnerability**, please **do not open a public issue**.
+
+Instead contact maintainers privately through GitHub.
+
+---
+
+# 🧭 Areas Where Contributions Are Most Welcome
+
+We especially welcome contributions in:
+
+* AI itinerary generation improvements
+* map route optimization
+* recommendation algorithms
+* social travel feed features
+* real-time messaging performance
+* UI/UX enhancements
+* accessibility improvements
+* mobile performance optimization
+
+---
+
+# 📜 Code of Conduct
+
+We are committed to maintaining a **welcoming and inclusive community**.
+
+Please:
+
+* Be respectful
+* Provide constructive feedback
+* Help others learn
+
+---
+
+# 🙌 Thank You
+
+Your contributions help make **Journii** a powerful platform for travelers worldwide.
+
+Together we can build the future of **AI-powered travel discovery and planning**.
+
+**Explore Culture • Plan Smart • Travel Together**

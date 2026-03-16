@@ -1,4 +1,6 @@
-# 🌍 Journii
+# 🌍 Journii (V2)
+
+![Journii Platform Overview](frontend/assets/images/about.png)
 
 **Journii** is an AI-powered cultural journey navigator, travel social platform, and intelligent trip planning marketplace designed to help people **discover destinations, plan trips, connect with travelers, and book experiences worldwide**.
 
@@ -10,14 +12,18 @@ Users can explore destinations through **community travel stories, reels, and lo
 
 # ✨ Platform Vision
 
-Journii aims to unify four major travel experiences:
+Journii unifies four major travel experiences into a single ecosystem:
 
-* **Travel Discovery** – Explore destinations through social posts, travel reels, and community recommendations
-* **AI Trip Planning** – Generate dynamic itineraries tailored to interests, budget, and time
-* **Travel Social Network** – Connect with travelers, share stories, and collaborate on trips
+* **Travel Discovery** – Explore destinations through reels, stories, and community recommendations
+* **AI Trip Planning** – Generate dynamic itineraries based on interests, budget, and time
+* **Travel Social Network** – Connect with travelers and collaborate on trips
 * **Global Travel Marketplace** – Discover and book hotels, experiences, tours, and local services
 
-The platform enables a seamless journey from **inspiration → planning → booking → sharing experiences**.
+The platform enables a seamless journey:
+
+```
+Inspiration → Planning → Collaboration → Booking → Travel → Sharing
+```
 
 ---
 
@@ -25,7 +31,7 @@ The platform enables a seamless journey from **inspiration → planning → book
 
 ## 🧭 Cultural Explorer
 
-AI-powered recommendations for authentic cultural experiences.
+AI-powered recommendations for **authentic cultural experiences** beyond typical tourist attractions.
 
 Discover:
 
@@ -33,73 +39,113 @@ Discover:
 * Artisan workshops
 * Food trails
 * Cultural heritage sites
-* Hidden gems
+* Hidden attractions
 
-Recommendations adapt to user interests such as **history, food, art, photography, or adventure**.
+Recommendations adapt to user interests such as:
+
+* History
+* Food
+* Photography
+* Art
+* Adventure
 
 ---
 
 ## 🚆 Smart Transit Planner
 
-Real-time transit planning for efficient city navigation.
+Real-time intelligent transit planning for city navigation.
 
-Features include:
+Features:
 
 * Fastest routes
-* Scenic travel routes
-* Eco-friendly transit options
+* Scenic routes
+* Eco-friendly travel options
 * Public transportation guidance
-* Real-time route optimization
+* Route optimization
+* Distance and travel time calculations
 
-The planner integrates **multi-modal travel options** such as buses, metro, rideshare, and walking paths.
+Supports **multi-modal transport systems** including:
+
+* Metro
+* Bus
+* Walking
+* Cycling
+* Rideshare
+* Taxi
 
 ---
 
 ## 🤝 Social Companion
 
-Connect with like-minded travelers and locals.
+Journii enables travelers to connect with others who share similar interests.
 
 Capabilities include:
 
 * Travel companion matching
-* Shared experiences
-* Local guides and meetups
-* Travel community interactions
+* Shared trips
+* Local meetup discovery
+* Traveler communities
+* Social interactions around destinations
 
-This allows solo travelers to **discover safe and social travel opportunities**.
+Perfect for **solo travelers seeking social experiences**.
 
 ---
 
 ## 🗺 Dynamic AI Itinerary Builder
 
-Journii automatically generates travel itineraries based on:
+Journii generates **complete travel itineraries automatically**.
+
+Inputs include:
 
 * Destination
-* Budget
-* Interests
 * Trip duration
-* Travel preferences
+* Budget
+* Travel interests
+* Preferences
+
+Example:
+
+```
+3 Day Trip – Hampi
+
+Day 1
+Virupaksha Temple
+Hampi Bazaar
+Hemakuta Hill Sunset
+
+Day 2
+Vittala Temple
+Stone Chariot
+Tungabhadra River Ride
+
+Day 3
+Anegundi Village
+Sunrise Viewpoint
+Local Food Trail
+```
 
 Users can:
 
 * Customize itineraries
-* Rearrange destinations
 * Add new locations
-* Optimize routes automatically
+* Rearrange stops
+* Optimize travel routes
 
 ---
 
 ## 🧠 AI Map Trip Builder
 
-An interactive map-based trip planner that allows users to visually design journeys.
+Interactive map-based journey planner.
 
 Users can:
 
-* Add locations to a map
-* Drag-and-drop route stops
+* Add destinations visually
+* Drag and reorder stops
+* Calculate travel distance
 * Optimize travel paths
-* Calculate travel time and distance
 * Discover nearby attractions
+
+This creates a **visual planning experience similar to map-based route design tools**.
 
 ---
 
@@ -107,64 +153,92 @@ Users can:
 
 Plan trips together with friends.
 
-Group features include:
+Features include:
 
 * Shared itineraries
-* Group voting on destinations
-* Real-time trip edits
-* Group messaging
+* Location voting
+* Trip group chat
+* Real-time editing
 * Expense sharing
+
+Example:
+
+```
+Trip: Goa Vacation
+
+Members
+Rahul
+Priya
+Swaroop
+
+Activity Feed
+Rahul added Baga Beach
+Priya added Sunset Cruise
+Swaroop booked hotel
+```
 
 ---
 
 ## 📸 Travel Social Platform
 
-Journii includes a **location-based social media system**.
+Journii includes a **location-driven travel social media system**.
 
 Users can post:
 
-* Travel photos
-* Short videos and reels
-* Travel blogs and tips
+* Photos
+* Short travel videos
+* Reels
+* Travel blogs
 * Audio travel stories
 
-Posts are tagged with **geographic locations**, enabling destination discovery through community content.
+All content is **geo-tagged**, enabling discovery through location.
+
+Example:
+
+```
+📍 Hampi
+
+Top Posts
+Sunset Reel – Hemakuta Hill
+Temple Walk – Vittala Temple
+Street Food Review
+```
 
 ---
 
 ## 📍 Location-Based Discovery Feed
 
-When users search for a destination, Journii displays:
+When users search a destination, Journii displays:
 
 * Trending travel videos
 * Popular community posts
 * Highly rated attractions
-* AI-recommended destinations
+* AI recommended places
 
-This creates an immersive **map-driven discovery experience**.
+This creates an immersive **map-driven exploration feed**.
 
 ---
 
 ## 🏨 Travel Business Marketplace
 
-Businesses can list services on the platform.
+Journii enables businesses to list services on the platform.
 
-Supported listings include:
+Supported listings:
 
-* Hotels and accommodations
+* Hotels & accommodations
 * Tour operators
 * Adventure activities
-* Restaurants and cafes
+* Restaurants
 * Local guides
-* Transportation providers
+* Transport services
 
-Businesses manage listings through a **dashboard with analytics and booking management**.
+Businesses manage listings through a **business dashboard** with analytics and booking management.
 
 ---
 
 ## 💳 Booking & Commission Model
 
-Users can book travel services directly through Journii.
+Journii allows users to **book travel services directly inside the platform**.
 
 Supported bookings:
 
@@ -174,46 +248,92 @@ Supported bookings:
 * Transportation
 * Activities
 
-Journii operates on a **commission-based marketplace model** for each successful booking.
+Revenue model:
+
+```
+Commission per successful booking
+```
+
+Similar to travel marketplaces like:
+
+* Booking platforms
+* Experience marketplaces
+* Travel aggregators
 
 ---
 
 ## 🌐 International Travel Support
 
-Journii helps users plan global trips by providing:
+Journii simplifies global travel planning by providing:
 
 * Visa requirements
-* Application timelines
+* Processing timelines
 * Required documentation
-* Entry rules and procedures
+* Entry rules
 
-This simplifies international travel planning.
+Example:
+
+```
+Japan Tourist Visa
+
+Processing Time
+7–10 days
+
+Documents
+Passport
+Bank Statement
+Travel Itinerary
+```
 
 ---
 
 ## 🏆 Gamification System
 
-Users earn rewards for exploration and engagement.
+Journii rewards engagement and exploration.
 
-Gamification includes:
+Users earn:
 
-* Travel XP points
-* Achievement badges
-* Cultural exploration milestones
-* Community recognition
+* XP points
+* Travel badges
+* Exploration levels
+* Cultural achievements
 
-This encourages users to **discover new destinations and contribute content**.
+Example badges:
+
+* Explorer Badge – Visit 10 cities
+* Story Creator – Post 5 reels
+* Culture Enthusiast – Attend 3 events
+
+---
+
+## 💬 Real-Time Messaging System
+
+Built-in messaging system similar to chat apps.
+
+Chat types:
+
+* Private chat
+* Trip group chat
+* Community chat
+
+Users can share:
+
+* itineraries
+* media
+* travel plans
+* live updates
 
 ---
 
 ## 🔐 Secure Authentication
 
-Journii uses secure authentication mechanisms including:
+Journii uses modern security practices:
 
-* JWT-based authentication
-* Protected APIs
+* JWT authentication
 * Secure session management
-* Role-based access for users and businesses
+* Protected APIs
+* Role-based access
+* Encrypted credentials
 
 ---
 
@@ -222,11 +342,12 @@ Journii uses secure authentication mechanisms including:
 ## Backend
 
 * **Python 3.10+**
-* **FastAPI** – High-performance async API framework
-* **SQLAlchemy** – ORM for database models
-* **SQLite / PostgreSQL** – Data storage
-* **Gemini AI API** – AI-powered travel recommendations
-* **Pydantic** – Data validation and schema management
+* **FastAPI**
+* **SQLAlchemy**
+* **PostgreSQL / SQLite**
+* **Redis**
+* **Pydantic**
+* **Gemini AI API**
 
 ---
 
@@ -234,18 +355,20 @@ Journii uses secure authentication mechanisms including:
 
 * **React Native (Expo)**
 * **TypeScript**
-* **NativeWind** – Tailwind CSS for React Native
-* **Zustand** – Lightweight state management
-* **React Query** – Data fetching and caching
+* **NativeWind**
+* **Zustand**
+* **React Query**
 
 ---
 
 ## DevOps & Tooling
 
-* **Git & GitHub**
-* **GitHub Actions** – Continuous Integration
-* **Jest** – Frontend testing
-* **Pytest** – Backend testing
+* Git & GitHub
+* GitHub Actions CI
+* Pytest
+* Jest
+* Docker
+* Docker Compose
 
 ---
 
@@ -258,13 +381,13 @@ Backend:
 * Python 3.10+
 * pip
 * virtualenv
-* PostgreSQL (or SQLite for development)
+* PostgreSQL or SQLite
 
 Frontend:
 
 * Node.js 18+
 * npm 8+
-* Expo Go mobile app
+* Expo Go
 
 ---
 
@@ -279,7 +402,7 @@ cd Journii
 
 ---
 
-## 2️⃣ Backend Setup
+# 2️⃣ Backend Setup
 
 ```bash
 cd backend
@@ -288,7 +411,7 @@ python -m venv venv
 
 Activate environment:
 
-Windows:
+### Windows
 
 ```bash
 .\venv\Scripts\activate
@@ -300,7 +423,7 @@ Install dependencies:
 pip install -r app/requirements.txt
 ```
 
-Create `.env` file inside **backend/app**:
+Create `.env` file inside **backend/app**
 
 ```env
 DATABASE_URL=sqlite:///journii.db
@@ -308,10 +431,10 @@ GEMINI_API_KEY=your_gemini_api_key
 JWT_SECRET=your_secure_secret
 ```
 
-Run backend server:
+Run backend:
 
 ```bash
-python -m uvicorn app.main:app --reload
+uvicorn app.main:app --reload
 ```
 
 Backend API documentation:
@@ -322,7 +445,7 @@ http://localhost:8000/docs
 
 ---
 
-## 3️⃣ Frontend Setup
+# 3️⃣ Frontend Setup
 
 ```bash
 cd frontend
@@ -332,13 +455,13 @@ npm start
 
 Run using:
 
-* Expo Go (scan QR code)
+* Expo Go (scan QR)
 * Android Emulator
 * iOS Simulator
 
-Ensure API configuration points to backend:
+Ensure API URL is correct:
 
-```ts
+```
 API_URL=http://localhost:8000
 ```
 
@@ -349,33 +472,34 @@ API_URL=http://localhost:8000
 ```
 Journii/
 │
-├── .github/
-│   ├── workflows/
-│   │   ├── dependency-scan.yml
-│   ├── dependabot.yml
-│
 ├── backend/
 │   ├── app/
-│   │   ├── main.py
-│   │   ├── config.py
-│   │   ├── models/          # SQLAlchemy models
-│   │   ├── routers/         # API endpoints
-│   │   ├── schemas/         # Pydantic schemas
-│   │   ├── services/        # AI integrations & business logic
-│   │   ├── utils/           # Authentication & helpers
-│   │   ├── tests/           # Backend unit tests
-│   │   ├── requirements.txt
+│   │   ├── api/
+│   │   ├── models/
+│   │   ├── routers/
+│   │   ├── schemas/
+│   │   ├── services/
+│   │   ├── utils/
+│   │   ├── websocket/
+│   │   ├── tests/
+│   │   └── main.py
 │
 ├── frontend/
 │   ├── app/
-│   │   ├── (tabs)/          # Expo Router navigation
-│   │   ├── components/      # UI components
-│   │   ├── hooks/           # Custom hooks
-│   │   ├── stores/          # Zustand state management
+│   │   ├── (tabs)/
+│   │   ├── marketplace/
+│   │   ├── chat/
+│   │   ├── experience/
+│   │   ├── itinerary/
+│   │   └── navigation/
 │   │
-│   ├── package.json
-│   ├── tsconfig.json
+│   ├── components/
+│   ├── hooks/
+│   ├── services/
+│   ├── stores/
+│   └── assets/images/
 │
+├── .github/
 ├── CONTRIBUTING.md
 ├── LICENSE
 └── README.md
@@ -399,29 +523,54 @@ npm test
 
 ---
 
+# 🗺 Example User Journey
+
+```
+User searches: Hampi
+↓
+Sees travel reels and posts
+↓
+Selects interesting places
+↓
+AI builds itinerary
+↓
+User customizes trip on map
+↓
+Invites friends
+↓
+Books hotel and experiences
+↓
+Travels and records journey
+↓
+Posts reels and stories
+```
+
+---
+
+# 🔮 Future Roadmap
+
+Upcoming enhancements:
+
+* AI travel video guides
+* Smart budget optimization
+* Travel safety monitoring
+* Real-time event discovery
+* Creator monetization tools
+* Travel influencer analytics
+* Business booking dashboards
+* AI itinerary auto-adjustments during travel
+
+---
+
 # 🤝 Contributing
 
 Contributions are welcome!
 
 Please read **CONTRIBUTING.md** for:
 
-* coding standards
-* pull request guidelines
+* coding guidelines
 * development workflow
-
----
-
-# 💡 Future Roadmap
-
-Planned features include:
-
-* AI video travel guides
-* Smart trip budget optimization
-* Travel safety monitoring
-* Real-time event discovery
-* Creator monetization tools
-* Travel influencer analytics
-* Business booking dashboards
+* pull request standards
 
 ---
 
@@ -429,16 +578,18 @@ Planned features include:
 
 This project is licensed under the **MIT License**.
 
-See `LICENSE` for details.
+See the `LICENSE` file for details.
 
 ---
 
 # 📬 Contact
 
-For questions, feature requests, or collaboration opportunities:
+For collaboration, issues, or feature requests:
 
-Open an issue on GitHub or contact the maintainers.
+Open an issue on GitHub.
 
 ---
 
-**Journii – Explore Culture. Plan Smart. Travel Together.**
+# 🌍 Journii
+
+**Explore Culture • Plan Smart • Travel Together**
