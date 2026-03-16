@@ -1,6 +1,6 @@
 # 🌍 Journii (V2)
 
-![Journii Platform Overview](frontend/assets/images/about.png)
+![Journii Platform Overview](frontend/assets/images/ABOUT.png)
 
 **Journii** is an AI-powered cultural journey navigator, travel social platform, and intelligent trip planning marketplace designed to help people **discover destinations, plan trips, connect with travelers, and book experiences worldwide**.
 
