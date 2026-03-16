@@ -2,35 +2,39 @@
     ├── workflows
         ├── dependancy-scan.yaml
     ├── FUNDING.yaml
-├── .qodo
 ├── backend
+    ├── alembic
+        ├── env.py
     ├── app
         ├── api
             ├── v1
                 ├── auth.py
                 ├── cultural.py
-                ├── transit.py
+                ├── deps.py    
+                ├── media.py   
+                ├── transit.py 
         ├── core
-            ├── config.py
-            ├── exceptions.py
-            ├── logging.py
-            ├── security.py
+            ├── config.py      
+            ├── exceptions.py  
+            ├── logging.py     
+            ├── middleware.py  
+            ├── security.py    
         ├── db
-            ├── redis.py
+            ├── redis.py       
             ├── session.py
         ├── models
             ├── __pycache__
                 ├── itinerary.cpython-311.pyc
                 ├── reward.cpython-311.pyc
-                ├── user.cpython-311.pyc
+                ├── user.cpython-311.pyc    
                 ├── __init__.cpython-311.pyc
             ├── base.py
             ├── community.py
             ├── itinerary.py
             ├── marketplace.py
+            ├── media.py    
             ├── messaging.py
-            ├── reward.py
-            ├── rewards.py
+            ├── rewards.py  
             ├── user.py
             ├── __init__.py
         ├── routers
@@ -61,10 +65,12 @@
                 ├── transit.cpython-311.pyc
                 ├── __init__.cpython-311.pyc
             ├── auth.py
+            ├── common.py
             ├── community.py
             ├── cultural.py
             ├── gamification.py
             ├── itinerary.py
+            ├── media.py
             ├── social.py
             ├── transit.py
             ├── __init__.py
@@ -76,13 +82,19 @@
                 ├── safety_service.cpython-311.pyc
                 ├── transit_service.cpython-311.pyc
                 ├── __init__.cpython-311.pyc
+            ├── base_service.py
             ├── community_service.py
             ├── gemini_service.py
+            ├── media_service.py
+            ├── processing_service.py
             ├── rewards_service.py
             ├── safety_service.py
+            ├── storage_service.py
             ├── transit_service.py
             ├── __init__.py
         ├── tests
+            ├── conftests.py
+            ├── test_media.py
             ├── test_transit.py
             ├── __init__.py
         ├── utils
@@ -101,11 +113,13 @@
         ├── main.py
         ├── requirements.txt
         ├── __init__.py
+    ├── Backend_Architecture_Overview.txt
+    ├── docker-compose.yml
     ├── dockerfile
-    ├── dockey-compose.yml
     ├── package-lock.json
     ├── package.json
     ├── requirements.txt
+    ├── run.ps1
     ├── tree.txt
 ├── frontend
     ├── app
@@ -116,13 +130,25 @@
             ├── routes.tsx
             ├── social.tsx
             ├── _layout.tsx
+        ├── business
+            ├── [id].tsx
         ├── chat
+            ├── [id].tsx
+        ├── experience
             ├── [id].tsx
         ├── itenary
             ├── builder.tsx
+            ├── index.tsx
+            ├── [id].tsx
         ├── marketplace
             ├── index.tsx
+        ├── navigation
+            ├── AppNavigator.tsx
+        ├── screens
+            ├── ReelFeedScreen.tsx
         ├── +not-found.tsx
+        ├── notifications.tsx
+        ├── search.tsx
         ├── _layout.tsx
     ├── assets
         ├── images
@@ -132,9 +158,11 @@
             ├── splash-icon.png
     ├── components
         ├── ui
+            ├── BottomSheet.tsx
             ├── skeleton.tsx
         ├── ai-chat-interface.tsx
         ├── ErrorBoundary.tsx
+        ├── VideoPlayer.tsx
     ├── constants
         ├── theme.ts
     ├── hooks
@@ -142,8 +170,10 @@
         ├── use-books.ts
         ├── use-countries.ts
         ├── use-currencies.ts
+        ├── use-debounce.ts
         ├── use-flights.ts
         ├── use-foodfacts.ts
+        ├── use-haptics.ts
         ├── use-movies.ts
         ├── use-plants.ts
         ├── use-poems.ts
@@ -155,6 +185,7 @@
             ├── client.ts
             ├── endpoint.ts
             ├── hooks.ts
+        ├── websocket.ts
     ├── stores
         ├── app-store.ts
         ├── auth-store.ts
@@ -170,3 +201,4 @@
 ├── LICENSE
 ├── README.md
 ├── tree.txt
+├── V2Update.txt
